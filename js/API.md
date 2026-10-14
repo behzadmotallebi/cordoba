@@ -10,6 +10,7 @@ Kütüphane yok, dış dosya yok, sadece Canvas 2D. Hedef: orta seviye telefonda
 ## Koordinatlar ve çizim
 
 - Dünya koordinatı: x ∈ [0, 1400], y = 0 deniz yüzeyi, aşağı doğru artar, `DG.S.worldH` (~60.500 px) en dip.
+- Karanlık katmanı yarım çözünürlükte çizilip büyütülür (yumuşak degrade, dolum maliyeti düşük); `lights()` delikleri de öyle.
 - Ekran = dünya − kamera: `sx = x - DG.S.cam.x`, `sy = y - DG.S.cam.y`. Ekran boyutu `DG.S.W` × `DG.S.H` (CSS px).
 - Çizim fonksiyonları `ctx`'i DPR ölçekli (ve bazen sarsıntı ötelemeli) alır. `save()/restore()` ile çalış, transform'u bozma.
 - Ekran dışında kalanı çizme (y ile kırp). Gölge/blur (`shadowBlur`, `filter`) kullanma: telefonda pahalı.
@@ -29,7 +30,7 @@ Kütüphane yok, dış dosya yok, sadece Canvas 2D. Hedef: orta seviye telefonda
 `layerOf(y)` → kat 0..10, `toM(y)` → metre, `mToY(m)`, `LTOP[i]` kat üst y'si, `LH(i)` kat yüksekliği px, `LBOT(i)`,
 `wallW(y, side)` duvar kalınlığı (side 0 sol, 1 sağ), `boundsAt(y)` → [minX, maxX] yüzülebilir aralık,
 `inLedge(x, y)` kat rafı içinde mi (raflar her kat sınırında, ortada 520 px'lik asansör açıklığı var),
-`waterAt(y)` → [r,g,b] su rengi, `darkAtM(m)`, `stationPos(s)`, `isSafe(x, y)` istasyonun güvenli bölgesi mi,
+`waterAt(y)` → [r,g,b] su rengi, `wallColor(y)` → [r,g,b] duvar boyası (ekran ortasındaki y için), `ledgeColor(i)` → i. kat rafının boyası (taklitçi ahtapot kamuflajı bunlarla eşleşir), `darkAtM(m)`, `stationPos(s)`, `isSafe(x, y)` istasyonun güvenli bölgesi mi,
 `valUnit(L)` o katın para birimi, `drawShape(shape, color, sx, sy, time, scale)` hazine şekli çizer (ekran koordinatı;
 şekiller: shell star pearl coin coral amphora ingot gem diamond crystal compass watch statue tablet book chest bottle crown gear eye spear heart).
 
@@ -41,9 +42,10 @@ Kütüphane yok, dış dosya yok, sadece Canvas 2D. Hedef: orta seviye telefonda
 - `reward(miktar, x, y, etiket)` doğrudan para.
 - `startLift()` kaldırma balonu (yetenek). `ink(sn)` ekranı mürekkeple karartır, `slow(sn)` dalgıcı yavaşlatır.
 - `msg(metin, renk)`, `float(x, y, metin, renk)` dünyada yükselen yazı, `sfx(ad)`, `buzz(ms)`.
-  Ses adları: pick sell buy hurt growl shot hit kill boom zap net sonar dash flare balloon roar relic warn faint elev.
+  Ses adları: pick sell buy hurt growl shot hit kill boom zap net sonar dash flare balloon roar relic warn faint elev sonic camo thunder.
 - `gSpeed()`, `gLight()`, `gTank()`, `tier()`, `wdmg()` (eser kaynaklı silah hasarı çarpanı), `demo()`.
-- `bossHUD(bossOran, gemiOran, isim)` üstteki canavar/gemi çubukları; `bossHUD(null)` gizler.
+- `bossHUD(bossOran, gemiOran, isim)` üstteki canavar/gemi çubukları; `bossHUD(null)` gizler. Çubuk açıkken `body.boss` sınıfı konur:
+  para paneli gizlenir, çubuk onun yerine üste çıkar, kamera tekneyi göstermek için biraz daha yukarı bakar.
 - `bossWon()` final kazanıldı. `bossLost()` gemi battı (tekrar dene ekranı).
 
 ## `DG.mon` (js/mon.js) canavarlar
@@ -59,6 +61,9 @@ Tipler: jelly eel shark angler viper squid serpent guardian mimic octopus.
   Duvar ve raflardan geçmesin (`boundsAt`, `inLedge`). Sadece `DG.S.playing` iken saldırsın.
 - `damage(m, miktar, {stun, kx, ky, kind})` silahlar çağırır: can düşür, beyaz parlama, sersemletme, geri itme; ölürse `m.dead = true` ve `DG.core.bounty(m)`, efekt.
 - `radius(m)` isabet yarıçapı.
+- `spawnAt(tip, x, y, L, {size, hunt, ignoreSafe, keeper, hpMul, vx, vy})` canavar yaratıp `DG.S.mons`'a ekler ve döndürür (final çağırır).
+  `hunt` hemen kovalatır; `DG.boss.active()` iken `hunt` ve `ignoreSafe` varsayılan olarak açıktır.
+- `m.hidden` / `isHidden(m)`: kılık değiştirmiş taklitçi ya da ahtapot (silahlar otomatik nişanda atlar, sonar gösterir). `reveal(m)` açığa çıkarır.
 - `draw(ctx, m)` ışıkla görünen gövde (karanlık katmandan önce çizilir, karanlıkta kaybolur).
 - `drawGlow(ctx, m, darkAlpha)` karanlığın üstüne çizilenler: parlayan gözler, fener balığı ışığı, denizanası ışıltısı, sonar ile açığa çıkan taklitçiler.
 - `lights()` → [{x, y, r, k}] karanlıkta delik açan ışıklar (dünya koordinatı).
@@ -76,7 +81,9 @@ Veri: `DG.data.WEAPONS`, `DG.data.SKILLS`. Seviye çarpanı: silah hasarı × (1
   Sadece `DG.S.playing` iken ateş et. İstasyonda (dalgıç y < 30) ateş etme.
 - `next()` sahip olunan bir sonraki silaha geç (`save.curWpn`), kısa mesaj.
 - `skill(id)` yeteneği kullan (sahipse, hazırsa). `lift` → `DG.core.startLift()`.
-- `skillInfo(id)` → {frac: kalan bekleme 0..1, active: bool}. `fireInfo()` → {frac}.
+- `skillInfo(id)` → {frac: kalan bekleme 0..1, active: bool}. `fireInfo()` → {frac}. `shortName(id)` silahın HUD etiketi (ZIPKIN, TÜFEK…),
+  `aimTarget()` o anki hedef, `shockActive()`, `dashActive()`, `reset()`.
+- Hasar sayıları `DG.fx.dmgText` ile hedef başına 0,18 sn toplanıp yazılır (×10 tam sayı).
 - `speedMult()` (dash), `defenseMult()` (elektrik kalkanı açıkken hasar azaltma vb.), `camoActive()`, `sonarActive()`, `flares` dizisi.
 - `draw(ctx)` mermiler, ağlar, ışın, kalkan halkası; `drawUnder(ctx)` dalgıcın arkasına; `drawGlow(ctx, darkAlpha)` karanlık üstü parıltılar; `lights()`.
 
@@ -87,6 +94,9 @@ Dövüş yüzeyde, teknenin çevresinde (y ≈ 0..900). Karanlık kapalıdır (`
 - `start()` dövüşü (yeniden) başlatır: canavar derinden tekneye doğru yükselir. Gemi canı 100.
 - `update(dt)`, `draw(ctx)`, `drawGlow(ctx, a)`, `lights()`, `active()` → bool, `reset()` (sayfa açılışında).
 - `targets()` → silahların vurabileceği parçalar [{x, y, r, hit(miktar, opts)}] (zayıf noktalar daha çok hasar alır).
+  `weak:true` otomatik nişanda önceliklidir. `ownNums:true` olan parçanın hasar sayısını silah modülü yazmaz; final, çarpanı
+  uygulanmış gerçek hasarı kendisi yazar (alan silahları karede tek parçaya sayıldığı için). Sersemletme parçaya en çok 1,2 sn gelir.
+- `info()` test ve hata ayıklama için anlık durum.
 - Her karede `DG.core.bossHUD(canOranı, gemiOranı, 'Derinlerin Efendisi')`. Kazanınca `DG.core.bossWon()`, gemi canı 0 olunca `DG.core.bossLost()`.
 - Dalgıca saldırı: `DG.core.hurt(...)`. Gemiye saldırı: kendi gemi canını düşür, `DG.fx.shake`, ses.
 - `boatTint(ctx)` (isteğe bağlı) gemi çizilmeden önce çağrılır; hasar görünümü için.
@@ -98,7 +108,8 @@ Dövüş yüzeyde, teknenin çevresinde (y ≈ 0..900). Karanlık kapalıdır (`
 - `drawMid(ctx)` dalgıçtan sonra, karanlıktan önce: parçacıklar (kıvılcım, kabarcık patlaması, enkaz).
 - `drawFront(ctx)` karanlıktan sonra: parlayan parçacıklar, patlama ışıkları, hasar sayıları.
 - `drawScreen(ctx)` ekran efektleri (flaş).
-- `update(dt)`, `burst(x, y, renk, adet, hız)`, `spark(x, y)`, `explosion(x, y, yarıçap)`, `dmgText(x, y, metin, renk)`, `shake(miktar)`, `shakeAmount()`, `flash(renk, alfa)`.
+- `update(dt)`, `burst(x, y, renk, adet, hız)`, `spark(x, y, renk?)`, `explosion(x, y, yarıçap)`, `dmgText(x, y, metin, renk)`, `shake(miktar)`, `shakeAmount()`, `flash(renk, alfa)`.
+- `lights()` patlama ve kıvılcım ışıkları (çekirdek karanlıkta bunlara da delik açar), `bubble(x, y, r?)`, `storm()` → 0..1 fırtına karışımı.
 
 ## Görsel dil
 

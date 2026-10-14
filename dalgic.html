@@ -87,7 +87,15 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 #warn{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 132px);transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;letter-spacing:.12em;font-size:13px;padding:8px 14px;border-radius:6px;animation:blink .5s steps(2) infinite;z-index:2;white-space:nowrap;pointer-events:none}
 #msg{position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 180px);margin:0 auto;max-width:440px;text-align:center;font-weight:600;font-size:14px;padding:8px 14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:2}
 #msg.on{opacity:1}
-#bossBar:not([hidden]) ~ #msg{top:calc(env(safe-area-inset-top,0px) + 216px)}
+/* final dövüşü: para paneli gizlenir, canavar çubuğu onun yerine üste çıkar; tekne görünür kalır */
+body.boss .cash{display:none}
+body.boss #bossBar{top:calc(env(safe-area-inset-top,0px) + 10px)}
+body.boss #msg{top:calc(env(safe-area-inset-top,0px) + 104px)}
+@media (max-width:560px){
+  body.boss #bossBar{left:194px;right:12px;width:auto;transform:none;padding:7px 10px;gap:4px}
+  body.boss #bossBar .nm{font-size:13px}
+  body.boss #bossBar .lbl{font-size:9px;letter-spacing:.1em}
+}
 
 /* station actions: bottom-left */
 #ctx{position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);display:flex;gap:10px;z-index:3}

@@ -74,15 +74,25 @@ let floaters = [], bubbles = [], bubbleT = 0, lastLayer = -1, lastBestShown = 0,
 const keys = new Set();
 
 // ---------- tuval ----------
-const $ = id => document.getElementById(id);
+const elc = {};
+const $ = id => { let e = elc[id]; if (!e || !e.isConnected) e = elc[id] = document.getElementById(id); return e; };
+// Her karede değişmeyen DOM'a yazma: telefonda gereksiz stil/yerleşim hesabı demek.
+const domMemo = new Map();
+const memo = (key, v) => domMemo.get(key) === v ? false : (domMemo.set(key, v), true);
+const setTxt = (el, v) => { v = String(v); if (memo(el.id + ':t', v)) el.textContent = v; };
+const setHid = (el, h) => { if (!memo(el.id + ':h', h)) return false; el.hidden = h; return true; };
+const setSty = (el, prop, v) => { if (memo(el.id + ':' + prop, v)) el.style.setProperty(prop, v); };
 const cv = $('sea'), ctx = cv.getContext('2d');
+// Karanlık katmanı yumuşak degradelerden oluşur: yarım çözünürlükte çizip büyütmek görünmez ama dolum maliyetini 1/16'ya indirir.
+const DK_SCALE = 0.5;
 const dk = document.createElement('canvas'), dctx = dk.getContext('2d');
 function resize(){
   S.DPR = Math.min(2, window.devicePixelRatio || 1);
   S.W = innerWidth; S.H = innerHeight;
-  for (const c of [cv, dk]) { c.width = Math.round(S.W*S.DPR); c.height = Math.round(S.H*S.DPR); }
+  cv.width = Math.round(S.W*S.DPR); cv.height = Math.round(S.H*S.DPR);
+  dk.width = Math.ceil(S.W*DK_SCALE); dk.height = Math.ceil(S.H*DK_SCALE);
 }
-addEventListener('resize', resize);
+addEventListener('resize', () => { resize(); hudBottom = $('hud').getBoundingClientRect().bottom; });
 document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 addEventListener('pagehide', () => persist());
 const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -313,6 +323,8 @@ function ink(sec){ S.inkT = Math.max(S.inkT, sec); }
 function slow(sec){ S.slowT = Math.max(S.slowT, sec); }
 function bossHUD(bossFrac, boatFrac, label){
   const b = $('bossBar');
+  const on = bossFrac != null;
+  if (document.body.classList.contains('boss') !== on) { document.body.classList.toggle('boss', on); hudBottom = $('hud').getBoundingClientRect().bottom; }
   if (bossFrac == null) { b.hidden = true; return; }
   b.hidden = false;
   $('bossName').textContent = label || 'Derinlerin Efendisi';
@@ -769,12 +781,12 @@ function update(dt){
   const zone = stationZone(); curStationZone = zone;
   if (S.playing) {
     const over = diver.y > limitY() + 8;
-    if (zone >= 0) { S.o2 = Math.min(maxO2, S.o2 + dt*maxO2/1.5); $('warn').hidden = true; }
+    if (zone >= 0) { S.o2 = Math.min(maxO2, S.o2 + dt*maxO2/1.5); setHid($('warn'), true); }
     else {
       const f = clamp((diver.y - LTOP[L])/LH(L), 0, 1);
       let rate = 1 + f*(1 + 0.2*L);
       if (over) { rate += 0.15*maxO2; overT -= dt; if (overT <= 0) { sfx('warn'); overT = 0.6; } }
-      $('warn').hidden = !over;
+      setHid($('warn'), !over);
       S.o2 -= rate*dt;
     }
     if (!diving && stationZone(70) < 0) startDive();
@@ -833,20 +845,21 @@ function update(dt){
   floaters = floaters.filter(fl => fl.t < 1.6);
 
   cam.x = WORLD_W > S.W ? clamp(diver.x - S.W/2, 0, WORLD_W - S.W) : (WORLD_W - S.W)/2;
-  cam.y += (Math.max(-S.H*0.3, diver.y - S.H*0.45) - cam.y)*Math.min(1, dt*6);
+  // Final dövüşünde tekne ve gökyüzü daha çok görünsün.
+  cam.y += (Math.max(-S.H*(bossOn() ? 0.38 : 0.3), diver.y - S.H*0.45) - cam.y)*Math.min(1, dt*6);
 
   updateHUD(m, L, maxO2, zone);
 }
 function updateHUD(m, L, maxO2, zone){
-  $('hDepth').textContent = Math.round(m).toLocaleString('tr-TR');
-  $('hAtm').textContent = (1 + m/10).toFixed(m < 1000 ? 1 : 0).replace('.', ',');
+  setTxt($('hDepth'), Math.round(m).toLocaleString('tr-TR'));
+  setTxt($('hAtm'), (1 + m/10).toFixed(m < 1000 ? 1 : 0).replace('.', ','));
   const bagEl = $('hBag');
-  bagEl.textContent = S.bag.length + '/' + gBag() + (S.relicHeld !== false ? ' +★' : '');
+  setTxt(bagEl, S.bag.length + '/' + gBag() + (S.relicHeld !== false ? ' +★' : ''));
   bagEl.classList.toggle('bagfull', S.bag.length >= gBag() && S.relicHeld === false);
   bagEl.classList.toggle('relicOn', S.relicHeld !== false);
   const frac = clamp(S.o2/maxO2, 0, 1);
-  $('hAir').textContent = Math.max(0, Math.ceil(S.o2));
-  $('hAirFill').style.width = (frac*100) + '%';
+  setTxt($('hAir'), Math.max(0, Math.ceil(S.o2)));
+  setSty($('hAirFill'), 'width', (frac*100).toFixed(1) + '%');
   // Dönüş işareti: bir üstteki istasyona varmak için gereken hava (pay ile).
   let rf = 0;
   if (zone < 0) {
@@ -855,18 +868,18 @@ function updateHUD(m, L, maxO2, zone){
     const f = clamp((diver.y - LTOP[L])/LH(L), 0, 1);
     rf = clamp(secs*(1 + f*(1 + 0.2*L))*1.25/maxO2, 0, 1);
   }
-  const ret = $('hAirRet'); ret.hidden = zone >= 0 || rf < 0.02; ret.style.left = (rf*100) + '%';
+  const ret = $('hAirRet'); setHid(ret, zone >= 0 || rf < 0.02); setSty(ret, 'left', (rf*100).toFixed(1) + '%');
   const late = S.playing && zone < 0 && rf > 0.02 && frac < rf + 0.06;
   if (late && !retWarned) { retWarned = true; msg('DÖN! Havan istasyona ancak yeter.', 'var(--danger)'); sfx('warn'); buzz(100); }
   $('hAirBox').classList.toggle('low', zone < 0 && (frac < 0.25 || late));
   if (save.money < shownMoney || Math.abs(save.money - shownMoney) < 1) shownMoney = save.money;
   else shownMoney += (save.money - shownMoney)*Math.min(1, S.dt*5);
-  $('hMoney').textContent = demo ? '₺∞ DEMO' : fmtMoney(shownMoney);
-  const carry = S.bag.reduce((a, it) => a + it.value, 0);
-  $('hCarry').hidden = !S.bag.length; $('hBestBox').hidden = !!S.bag.length;
-  if (S.bag.length) $('hCarryV').textContent = fmtMoney(carry);
-  $('hBest').textContent = Math.round(save.best).toLocaleString('tr-TR');
-  $('hStage').textContent = 'KAT ' + (L + 1) + '/' + NL + (S.W > 430 ? ' · ' + LAYERS[L].name.toLocaleUpperCase('tr-TR') : '') + (save.ng ? ' · S+' + save.ng : '');
+  setTxt($('hMoney'), demo ? '₺∞ DEMO' : fmtMoney(shownMoney));
+  let carry = 0; for (const it of S.bag) carry += it.value;
+  setHid($('hCarry'), !S.bag.length); setHid($('hBestBox'), !!S.bag.length);
+  if (S.bag.length) setTxt($('hCarryV'), fmtMoney(carry));
+  setTxt($('hBest'), Math.round(save.best).toLocaleString('tr-TR'));
+  setTxt($('hStage'), 'KAT ' + (L + 1) + '/' + NL + (S.W > 430 ? ' · ' + LAYERS[L].name.toLocaleUpperCase('tr-TR') : '') + (save.ng ? ' · S+' + save.ng : ''));
   if ((S.t*4|0) !== ((S.t - S.dt)*4|0)) updateCtx();
   updateControls();
 }
@@ -891,9 +904,8 @@ function updateGoal(){
 function updateCtx(){
   updateGoal();
   const show = S.playing && curStationZone >= 0;
-  $('ctx').hidden = !show;
-  $('opts').hidden = S.playing && (curStationZone < 0 || bossOn());
-  hudBottom = $('hud').getBoundingClientRect().bottom;
+  setHid($('ctx'), !show);
+  if (setHid($('opts'), S.playing && (curStationZone < 0 || bossOn()))) hudBottom = $('hud').getBoundingClientRect().bottom;
   if (!show) { $('shop').hidden = true; $('elev').hidden = true; }
   const n = affordableCount(), b = $('shopBadge'); b.hidden = n === 0; b.textContent = n;
   $('elevBtn').classList.toggle('ready', elevReady());
@@ -901,21 +913,22 @@ function updateCtx(){
 const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', camo:'KAMUFLAJ'};
 function updateControls(){
   const show = S.playing && diver.y > 30;
-  $('controls').hidden = !show;
+  setHid($('controls'), !show);
   if (!show) return;
-  fireBtn.hidden = save.ctrl === 2;
+  setHid(fireBtn, save.ctrl === 2);
   const w = WEAPONS.find(x => x.id === save.curWpn) || WEAPONS[0];
-  $('wpnName').textContent = DG.wpn && DG.wpn.shortName ? DG.wpn.shortName(w.id) : w.n.split(' ')[0].toLocaleUpperCase('tr-TR');
+  setTxt($('wpnName'), DG.wpn && DG.wpn.shortName ? DG.wpn.shortName(w.id) : w.n.split(' ')[0].toLocaleUpperCase('tr-TR'));
   const fi = DG.wpn && DG.wpn.fireInfo ? DG.wpn.fireInfo() : {frac:0};
-  fireBtn.style.setProperty('--p', String(clamp(fi.frac || 0, 0, 1)));
+  setSty(fireBtn, '--p', clamp(fi.frac || 0, 0, 1).toFixed(3));
   const dashInfo = DG.wpn && DG.wpn.skillInfo ? DG.wpn.skillInfo('dash') : {frac:0};
-  $('btnDash').style.setProperty('--p', String(clamp(dashInfo.frac || 0, 0, 1)));
+  setSty($('btnDash'), '--p', clamp(dashInfo.frac || 0, 0, 1).toFixed(3));
   for (let i = 0; i < 3; i++) {
     const b = $('btnSk' + i), id = save.equip[i];
-    b.hidden = !id; if (!id) continue;
+    setHid(b, !id); if (!id) continue;
     const s = SKILLS.find(x => x.id === id), info = DG.wpn && DG.wpn.skillInfo ? DG.wpn.skillInfo(id) : {frac:0, active:false};
-    b.firstChild.textContent = SK_SHORT[id] || s.n.split(' ')[0].toLocaleUpperCase('tr-TR');
-    b.style.setProperty('--p', String(clamp(info.frac || 0, 0, 1)));
+    const t = SK_SHORT[id] || s.n.split(' ')[0].toLocaleUpperCase('tr-TR');
+    if (memo(b.id + ':t', t)) b.firstChild.textContent = t;
+    setSty(b, '--p', clamp(info.frac || 0, 0, 1).toFixed(3));
     b.classList.toggle('active', !!info.active);
   }
 }
@@ -1204,7 +1217,7 @@ function drawDarkness(){
   S.darkAlpha = alpha;
   if (alpha <= 0.01) return 0;
   const W = S.W, H = S.H;
-  dctx.setTransform(S.DPR, 0, 0, S.DPR, 0, 0);
+  dctx.setTransform(DK_SCALE, 0, 0, DK_SCALE, 0, 0);
   dctx.globalCompositeOperation = 'source-over';
   dctx.clearRect(0, 0, W, H);
   dctx.fillStyle = `rgba(1,4,10,${alpha})`; dctx.fillRect(0, 0, W, H);
@@ -1222,7 +1235,7 @@ function drawDarkness(){
   for (let s = 1; s <= save.tier; s++) hole(BOAT_X - cam.x, LTOP[s] - 40 - cam.y, 300, 0.9);
   for (const g of S.glowSpots) hole(g.x - cam.x, g.y - cam.y, g.r, 0.75);
   for (const mod of [DG.mon, DG.wpn, DG.boss, DG.fx]) if (mod && mod.lights) for (const l of mod.lights()) hole(l.x - cam.x, l.y - cam.y, l.r, l.k == null ? 0.8 : l.k);
-  ctx.drawImage(dk, 0, 0, W, H);
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(dk, 0, 0, dk.width, dk.height, 0, 0, dk.width/DK_SCALE, dk.height/DK_SCALE);
   return alpha;
 }
 function drawItemGlows(alpha){
@@ -1392,7 +1405,7 @@ function frame(now){
 }
 function start(data){
   if (data && data.save && data.save.v === 3) mergeSave(data.save); else load();
-  resize(); setup(); syncDemoBtn(); shownMoney = save.money;
+  resize(); setup(); syncDemoBtn(); shownMoney = save.money; hudBottom = $('hud').getBoundingClientRect().bottom;
   if (data && data.playing) { $('intro').hidden = true; S.playing = true; }
   requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
 }
