@@ -64,7 +64,7 @@ function monR(m){
   const md = DG.data.MON[m.t]; return (md ? md.r : 16)*(m.size || 1);
 }
 const isBoss = o => bossT.indexOf(o) >= 0;
-const tR = o => isBoss(o) ? (o.r || 30) : monR(o);
+const tR = o => (isBoss(o) || !DG.data.MON[o.t]) ? (o.r || 30) : monR(o);
 function bossOn(){ return !!(DG.boss && DG.boss.active && DG.boss.active()); }
 // Katı mı: duvar, kat rafı ya da yüzeyin üstü (final dövüşünde yüzey serbest).
 function solid(x, y){
@@ -255,7 +255,7 @@ function fire(w, lv, want){
       for (let i = 0; i < 3; i++) rings.push({x:mx, y:my, r0:8, r1:R*(1 - i*0.12), t:-i*0.07, dur:0.46, a:want, half, c:'170,235,255', w:3.2 - i*0.8, fill:i === 0});
       for (let i = 0; i < 10; i++) { const a = want + rnd(-half, half), v = rnd(120, 320); if (puffs.length < 240) puffs.push({x:mx, y:my, vx:Math.cos(a)*v, vy:Math.sin(a)*v, r:rnd(1, 2.4), life:rnd(0.4, 0.8), max:0.8, ph:rnd(0, TAU)}); }
       muzzle(mx, my, want, 1.2, '170,235,255');
-      sfx('boom'); buzz(20);
+      sfx('sonic'); buzz(20);
       break;
     }
     case 'homing': {
@@ -767,7 +767,7 @@ DG.wpn = {
       case 'camo': {
         camoDur = s.dur || 4.5; camoT = camoDur;
         rings.push({x:d.x, y:d.y, r0:60, r1:14, t:0, dur:0.35, c:'150,255,220', w:1.6});
-        sfx('net');
+        sfx('camo');
         if (!camoHint && DG.core.msg) { camoHint = true; DG.core.msg('Kamuflaj: canavarlar seni göremiyor. Ateş edersen bozulur.', 'var(--relic)'); }
         break;
       }

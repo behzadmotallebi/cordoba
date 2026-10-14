@@ -69,11 +69,12 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 .air .bar b{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:#fff;opacity:.9;pointer-events:none}
 #hMoney{font-size:20px;color:var(--brass-hi);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 #hStage{color:var(--foam);font-size:10px;letter-spacing:.08em;font-weight:700;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.mute{margin-top:4px;min-height:28px;pointer-events:auto;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
+.opts{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:4px}
+.mute{min-height:28px;pointer-events:auto;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
 .bagfull{color:var(--amber)}
 .relicOn{color:var(--relic)}
 
-#bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 112px);width:min(420px,calc(100% - 32px));padding:8px 12px;display:grid;gap:5px;z-index:2;pointer-events:none}
+#bossBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 128px);width:min(420px,calc(100% - 32px));padding:8px 12px;display:grid;gap:5px;z-index:2;pointer-events:none}
 #bossBar .nm{font-family:var(--f-display);font-size:16px;letter-spacing:.04em;color:#ff8a7a;text-align:center}
 #bossBar .bar i{background:linear-gradient(90deg,#b0201a,#ff5a4e)}
 #bossBar .bar.boat i{background:linear-gradient(90deg,var(--brass-lo),var(--brass-hi))}
@@ -83,9 +84,10 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 #zone.on{opacity:1}
 #zone b{display:block;font-family:var(--f-display);font-weight:400;font-size:clamp(28px,8vw,48px);letter-spacing:.03em;color:var(--foam);text-shadow:0 2px 0 rgba(0,0,0,.5),0 2px 22px rgba(0,0,0,.7)}
 #zone span{font-size:12px;letter-spacing:.22em;color:var(--brass-hi)}
-#warn{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 176px);transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;letter-spacing:.12em;font-size:13px;padding:8px 14px;border-radius:6px;animation:blink .5s steps(2) infinite;z-index:2;white-space:nowrap;pointer-events:none}
-#msg{position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 132px);margin:0 auto;max-width:440px;text-align:center;font-weight:600;font-size:14px;padding:8px 14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:2}
+#warn{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 132px);transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:700;letter-spacing:.12em;font-size:13px;padding:8px 14px;border-radius:6px;animation:blink .5s steps(2) infinite;z-index:2;white-space:nowrap;pointer-events:none}
+#msg{position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 180px);margin:0 auto;max-width:440px;text-align:center;font-weight:600;font-size:14px;padding:8px 14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:2}
 #msg.on{opacity:1}
+#bossBar:not([hidden]) ~ #msg{top:calc(env(safe-area-inset-top,0px) + 216px)}
 
 /* station actions: bottom-left */
 #ctx{position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);display:flex;gap:10px;z-index:3}
@@ -200,8 +202,7 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
     <span class="goal" id="hGoal" hidden><span id="hGoalTxt"></span><span class="gbar"><i id="hGoalFill"></i></span></span>
     <span class="lbl" id="hBestBox">REKOR <span id="hBest" class="val">0</span> m</span>
     <span class="lbl" id="hCarry" hidden>ÇANTADA <span id="hCarryV" class="val">₺0</span></span>
-    <button class="mute" id="muteBtn" type="button">SES AÇIK</button>
-    <button class="mute" id="ctrlBtn" type="button">KONTROL: 1 PARMAK</button>
+    <span class="opts" id="opts"><button class="mute" id="muteBtn" type="button">SES AÇIK</button><button class="mute" id="ctrlBtn" type="button">KONTROL: 1 PARMAK</button></span>
   </div>
 </div>
 

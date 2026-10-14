@@ -53,6 +53,9 @@ function darkAtM(m){
   for (let i = 1; i < DARK.length; i++) if (m <= DARK[i][0]) { const [m0, a0] = DARK[i - 1], [m1, a1] = DARK[i]; return lerp(a0, a1, (m - m0)/(m1 - m0)); }
   return DARK[DARK.length - 1][1];
 }
+// Duvar ve raf boyası (taklitçi ahtapot kamuflajı da bunu kullanır).
+const wallColor = y => { const ly = LAYERS[layerOf(y)], w = waterAt(y); return ly.rock.map((v, i) => v*0.6 + w[i]*0.25); };
+const ledgeColor = i => LAYERS[Math.max(0, i - 1)].rock.map(v => v*0.75);
 const stationPos = s => s === 0 ? {x:BOAT_X, y:0} : {x:BOAT_X, y:LTOP[s]};
 
 // ---------- durum ----------
@@ -67,7 +70,7 @@ const cam = {x:0, y:0};
 const S = DG.S = {save, diver, cam, W:0, H:0, DPR:1, t:0, dt:0, items:[], mons:[], playing:false, lifting:false, riding:false,
   input:{fire:false, mx:0, my:0}, worldH:WORLD_H, darkAlpha:0, glowSpots:[], relicHeld:false, bag:[], o2:30, slowT:0, inkT:0};
 let mods = null, bagBonus = 0, diving = false, hurtT = 0, shakeT = 0, fullMsgT = 0, overT = 0, curStationZone = -1, retWarned = false, shownMoney = 0;
-let floaters = [], bubbles = [], bubbleT = 0, lastLayer = -1, lastBestShown = 0;
+let floaters = [], bubbles = [], bubbleT = 0, lastLayer = -1, lastBestShown = 0, hudBottom = 120;
 const keys = new Set();
 
 // ---------- tuval ----------
@@ -215,6 +218,9 @@ function sfx(k){
     case 'warn': tone(880, 0.1, 'square', 0.04); break;
     case 'faint': tone(300, 0.9, 'sine', 0.1, 0.25); break;
     case 'elev': tone(180, 0.9, 'triangle', 0.05, 1.8); break;
+    case 'sonic': tone(95, 0.35, 'sine', 0.16, 0.45); noise(0.3, 0.1, 0.02, 1400); break;
+    case 'camo': [1320, 990, 740].forEach((f, i) => tone(f, 0.22, 'sine', 0.035, 0.85, i*0.06)); break;
+    case 'thunder': noise(1.6, 0.22, 0, 260); tone(48, 1.2, 'sine', 0.12, 0.7, 0.05); break;
   }
 }
 function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
@@ -273,6 +279,7 @@ function generate(){
 }
 
 // ---------- modül API'si ----------
+const bossOn = () => !!(DG.boss && DG.boss.active && DG.boss.active());
 function dmgFor(m){ return MON[m.t].dmg*refTank(m.L)*(1 + 0.1*m.L)*(m.size > 1 ? 1.5 : 1); }
 function hurt(sec, name, src){
   if (diver.inv > 0 || !S.playing) return 0;
@@ -330,7 +337,7 @@ function bossLost(){
   $('bcBtn').textContent = 'Tekrar savaş';
   $('bossCard').hidden = false;
 }
-DG.U = {rand, clamp, hash, rgb, dist, lerp, mix, layerOf, toM, mToY, LTOP, LH, LBOT, wallW, boundsAt, inLedge, ledgeAt, waterAt, darkAtM, stationPos, isSafe, valUnit};
+DG.U = {rand, clamp, hash, rgb, dist, lerp, mix, layerOf, toM, mToY, LTOP, LH, LBOT, wallW, boundsAt, inLedge, ledgeAt, waterAt, darkAtM, stationPos, isSafe, valUnit, wallColor, ledgeColor};
 DG.core = {hurt, dmgFor, bounty, reward, startLift, ink, slow, msg, float, sfx, buzz, bossHUD, bossWon, bossLost, gSpeed, gLight, gTank,
   tier:() => save.tier, wdmg:() => mods.wdmg, demo:() => demo, persist};
 DG.sfx = sfx;
@@ -690,7 +697,7 @@ function faint(){
   const lost = S.bag.length, hadRelic = S.relicHeld !== false;
   sfx('faint'); buzz(200);
   S.bag = []; bagBonus = 0; S.relicHeld = false; diving = false; S.lifting = false; S.inkT = S.slowT = 0;
-  wakeAtStation(); S.o2 = gTank(); generate(); persist();
+  wakeAtStation(); S.o2 = gTank(); if (!bossOn()) generate(); persist();
   msg(hadRelic ? 'Bayıldın! Eser de çanta da derinlere geri döndü.' : lost ? 'Bayıldın! Çantadaki ' + lost + ' parça denizde kaldı.' : 'Bayıldın! İstasyon seni çekti.', 'var(--danger)');
 }
 const boatHalf = () => Math.max(120, SHIPS[save.tier].len*1.05 + 12);
@@ -716,7 +723,8 @@ function arriveAtStation(s){
     mods = relicMods(); sfx('relic'); buzz([60, 40, 120]);
     relicCard(L);
   }
-  generate(); persist();
+  if (!bossOn()) generate();
+  persist();
   hint('station', 'İstasyondasın: hava doldu, ganimet satıldı. Dükkân ve Asansör düğmeleri solda.');
 }
 function startDive(){ diving = true; save.dives++; retWarned = false; }
@@ -726,9 +734,10 @@ function update(dt){
   const sp = gSpeed();
   if (S.lifting) {
     const p = stationPos(S.liftTo), ty = S.liftTo === 0 ? 0 : p.y - 50;
-    const dx = p.x - diver.x, dy = ty - diver.y, L = Math.hypot(dx, dy) || 1, s2 = Math.max(sp, 200)*2.6;
-    diver.vx += (dx/L*s2 - diver.vx)*Math.min(1, dt*4); diver.vy += (dy/L*s2 - diver.vy)*Math.min(1, dt*4);
-    if (L < 30) S.lifting = false;
+    // Hedefe yaklaşınca yavaşla, varınca dur: yoksa hız istasyonun ötesine fırlatıyordu.
+    const dx = p.x - diver.x, dy = ty - diver.y, L = Math.hypot(dx, dy) || 1, s2 = Math.min(Math.max(sp, 200)*2.6, L*4 + 60);
+    diver.vx += (dx/L*s2 - diver.vx)*Math.min(1, dt*6); diver.vy += (dy/L*s2 - diver.vy)*Math.min(1, dt*6);
+    if (L < 30) { S.lifting = false; diver.vx *= 0.15; diver.vy *= 0.15; }
   } else {
     const has = ax || ay, f = Math.min(1, dt*(has ? 7 : 2.5));
     diver.vx += (ax*sp - diver.vx)*f; diver.vy += (ay*sp - diver.vy)*f;
@@ -883,6 +892,8 @@ function updateCtx(){
   updateGoal();
   const show = S.playing && curStationZone >= 0;
   $('ctx').hidden = !show;
+  $('opts').hidden = S.playing && (curStationZone < 0 || bossOn());
+  hudBottom = $('hud').getBoundingClientRect().bottom;
   if (!show) { $('shop').hidden = true; $('elev').hidden = true; }
   const n = affordableCount(), b = $('shopBadge'); b.hidden = n === 0; b.textContent = n;
   $('elevBtn').classList.toggle('ready', elevReady());
@@ -893,7 +904,7 @@ function updateControls(){
   if (!show) return;
   fireBtn.hidden = save.ctrl === 2;
   const w = WEAPONS.find(x => x.id === save.curWpn) || WEAPONS[0];
-  $('wpnName').textContent = w.n.split(' ')[0].toLocaleUpperCase('tr-TR');
+  $('wpnName').textContent = DG.wpn && DG.wpn.shortName ? DG.wpn.shortName(w.id) : w.n.split(' ')[0].toLocaleUpperCase('tr-TR');
   const fi = DG.wpn && DG.wpn.fireInfo ? DG.wpn.fireInfo() : {frac:0};
   fireBtn.style.setProperty('--p', String(clamp(fi.frac || 0, 0, 1)));
   const dashInfo = DG.wpn && DG.wpn.skillInfo ? DG.wpn.skillInfo('dash') : {frac:0};
@@ -912,9 +923,7 @@ function updateControls(){
 function drawWalls(){
   const yStart = Math.max(0, cam.y - 20), yEnd = cam.y + S.H + 20;
   if (yEnd <= 0) return;
-  const midL = layerOf((yStart + yEnd)/2), ly = LAYERS[midL];
-  const w = waterAt((yStart + yEnd)/2);
-  ctx.fillStyle = rgb(ly.rock.map((v, i) => v*0.6 + w[i]*0.25));
+  ctx.fillStyle = rgb(wallColor((yStart + yEnd)/2));
   for (const side of [0, 1]) {
     ctx.beginPath();
     const edge = side === 0 ? -cam.x - 2000 : WORLD_W - cam.x + 2000;
@@ -943,7 +952,7 @@ function drawWalls(){
 function drawLedges(){
   for (let i = 1; i < NL; i++) {
     const y = LTOP[i] - cam.y; if (y < -80 || y > S.H + 80) continue;
-    const ly = LAYERS[i - 1], c = ly.rock.map(v => v*0.75);
+    const c = ledgeColor(i);
     ctx.fillStyle = rgb(c);
     for (const side of [0, 1]) {
       const x0 = side === 0 ? -cam.x - 2000 : BOAT_X + SHAFT_HALF - cam.x;
@@ -982,7 +991,7 @@ function drawDecor(){
       case 'crystal': ctx.fillStyle = 'rgba(160,220,255,.55)'; for (const mx of [leftMid, rightMid]) for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(mx + i*34 - 10, by); ctx.lineTo(mx + i*34, by - 40 - hash(i + 3)*60); ctx.lineTo(mx + i*34 + 10, by); ctx.fill(); } break;
       case 'vents': for (const mx of [leftMid, rightMid]) {
         ctx.fillStyle = '#2a1410'; ctx.beginPath(); ctx.moveTo(mx - 22, by); ctx.lineTo(mx - 8, by - 80); ctx.lineTo(mx + 8, by - 80); ctx.lineTo(mx + 22, by); ctx.fill();
-        for (let k = 0; k < 5; k++) { const ph = (S.t*0.6 + k*0.2 + mx*0.01) % 1; ctx.fillStyle = `rgba(60,50,50,${0.6*(1 - ph)})`; ctx.beginPath(); ctx.arc(mx + Math.sin(ph*9 + k)*10, by - 86 - ph*180, 9 + ph*24, 0, 7); ctx.fill(); }
+        for (let k = 0; k < 5; k++) { const ph = (((S.t*0.6 + k*0.2 + mx*0.01) % 1) + 1) % 1; ctx.fillStyle = `rgba(60,50,50,${0.6*(1 - ph)})`; ctx.beginPath(); ctx.arc(mx + Math.sin(ph*9 + k)*10, by - 86 - ph*180, 9 + ph*24, 0, 7); ctx.fill(); }
       } break;
       case 'liner': ctx.fillStyle = '#0a0c0e'; { const x = leftMid - 150; ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x + 20, by - 100); ctx.lineTo(x + 300, by - 112); ctx.lineTo(x + 320, by); ctx.closePath(); ctx.fill(); for (let i = 0; i < 3; i++) ctx.fillRect(x + 60 + i*80, by - 180, 34, 70); } break;
       case 'trench': ctx.strokeStyle = 'rgba(80,160,255,.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(leftMid - 60, by - 2); ctx.lineTo(leftMid, by + 3); ctx.lineTo(leftMid + 60, by - 2); ctx.stroke(); break;
@@ -1135,7 +1144,7 @@ function drawBoat(){
 }
 function drawSurfaceLine(){
   const y = -cam.y; if (y < -10 || y > S.H + 10) return;
-  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.fillStyle = (DG.fx && DG.fx.storm && DG.fx.storm() > 0.5) ? 'rgba(205,220,228,.45)' : 'rgba(255,255,255,.55)';
   ctx.beginPath(); ctx.moveTo(0, y - 2);
   for (let x = 0; x <= S.W + 10; x += 10) ctx.lineTo(x, y + Math.sin((x + cam.x)*0.05 + S.t*2)*2);
   ctx.lineTo(S.W + 10, y + 3); ctx.lineTo(0, y + 3); ctx.closePath(); ctx.fill();
@@ -1162,7 +1171,7 @@ function drawDarkness(){
   hole(x + Math.cos(diver.ang)*diver.flip*r*0.7, y + Math.sin(diver.ang)*r*0.7, r*0.85, 0.9);
   for (let s = 1; s <= save.tier; s++) hole(BOAT_X - cam.x, LTOP[s] - 40 - cam.y, 300, 0.9);
   for (const g of S.glowSpots) hole(g.x - cam.x, g.y - cam.y, g.r, 0.75);
-  for (const mod of [DG.mon, DG.wpn, DG.boss]) if (mod && mod.lights) for (const l of mod.lights()) hole(l.x - cam.x, l.y - cam.y, l.r, l.k == null ? 0.8 : l.k);
+  for (const mod of [DG.mon, DG.wpn, DG.boss, DG.fx]) if (mod && mod.lights) for (const l of mod.lights()) hole(l.x - cam.x, l.y - cam.y, l.r, l.k == null ? 0.8 : l.k);
   ctx.drawImage(dk, 0, 0, W, H);
   return alpha;
 }
@@ -1209,11 +1218,11 @@ function drawPointers(){
   ctx.font = '700 12px "Chakra Petch", monospace';
   if (S.playing && diver.y > 60 && curStationZone < 0) {
     const s = stationAbove(diver.y), ty = s === 0 ? 0 : LTOP[s];
-    if (ty - cam.y < 0) { ctx.fillStyle = '#ffcf3a'; ctx.textAlign = 'center'; ctx.fillText('▲ ' + (s === 0 ? 'TEKNE' : 'İSTASYON ' + s) + ' · ' + fmtM(toM(diver.y) - toM(ty)), S.W/2, 120); }
+    if (ty - cam.y < 0) { ctx.fillStyle = '#ffcf3a'; ctx.textAlign = 'center'; ctx.fillText('▲ ' + (s === 0 ? 'TEKNE' : 'İSTASYON ' + s) + ' · ' + fmtM(toM(diver.y) - toM(ty)), S.W/2, hudBottom + 18); }
   }
   if (diver.y < 60) {
     const bx = BOAT_X - cam.x;
-    if (bx < 20 || bx > S.W - 20) { const left = bx < 0; ctx.fillStyle = '#ffb03a'; ctx.textAlign = left ? 'left' : 'right'; ctx.fillText(left ? '◀ TEKNE' : 'TEKNE ▶', left ? 12 : S.W - 12, Math.max(150, -cam.y - 24)); }
+    if (bx < 20 || bx > S.W - 20) { const left = bx < 0; ctx.fillStyle = '#ffb03a'; ctx.textAlign = left ? 'left' : 'right'; ctx.fillText(left ? '◀ TEKNE' : 'TEKNE ▶', left ? 12 : S.W - 12, Math.max(hudBottom + 34, -cam.y - 24)); }
   }
   const sonar = DG.wpn && DG.wpn.sonarActive && DG.wpn.sonarActive();
   if (S.playing && S.relicHeld === false) {
@@ -1285,7 +1294,9 @@ function render(){
   if (DG.boss && DG.boss.draw) DG.boss.draw(ctx);
   drawBubbles();
   if (DG.wpn && DG.wpn.draw) DG.wpn.draw(ctx);
-  drawDiver();
+  // Yüzeyde dalgıç teknenin gövdesinin arkasında kalmasın: tekneden sonra çizilir.
+  const atSurface = diver.y < 30;
+  if (!atSurface) drawDiver();
   if (DG.fx && DG.fx.drawMid) DG.fx.drawMid(ctx);
   const alpha = drawDarkness();
   drawItemGlows(alpha);
@@ -1293,6 +1304,7 @@ function render(){
   if (DG.wpn && DG.wpn.drawGlow) DG.wpn.drawGlow(ctx, alpha);
   if (DG.boss && DG.boss.drawGlow) DG.boss.drawGlow(ctx, alpha);
   drawBoat();
+  if (atSurface) drawDiver();
   drawSurfaceLine();
   if (DG.fx && DG.fx.drawFront) DG.fx.drawFront(ctx);
   drawFloaters();
