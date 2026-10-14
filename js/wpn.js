@@ -97,14 +97,21 @@ function findHit(x, y, pad, ignore){
   }
   return null;
 }
-// Kılık değiştirmiş taklitçiler otomatik nişana girmez (sonar açıkken girer).
+// Kılık değiştirmiş taklitçiler otomatik nişana girmez (sonar açıkken girer). Açığa çıkmış olan her menzilde normal hedeftir.
 function disguised(m, dist){
   if (sonarT > 0) return false;
-  if (m.disguised === true || m.hidden === true) return true;
-  if (m.disguised === false) return false;
+  if (m.disguised != null) return !!m.disguised;
+  if (typeof m.hidden === 'boolean') return m.hidden;
   const md = DG.data.MON[m.t];
   return !!(md && md.mimic && dist > (md.aggro || 100) + 20);
 }
+// Otomatik nişanın atladıkları: kılık değiştirmiş taklitçi/ahtapot ve deliğinde bekleyen, dalgıca uzanamayan yılan balığı.
+function skipAuto(m, dist){
+  return disguised(m, dist) || !!(DG.mon && DG.mon.lurking && DG.mon.lurking(m));
+}
+// İki parmak modu: atış nişan yönünden en çok bu kadar (±12°) hedefe kayar.
+const ASSIST = 0.21;
+function manualAim(){ const ia = DG.S.input && DG.S.input.aim; return ia && (ia.x || ia.y) ? Math.atan2(ia.y, ia.x) : null; }
 function nearFlare(x, y){
   for (const f of flares) { const dx = f.x - x, dy = f.y - y; if (dx*dx + dy*dy < 320*320) return true; }
   return false;
@@ -163,7 +170,7 @@ const cand = [];
 function visRange(){
   const S = DG.S;
   if (bossOn() || S.darkAlpha < 0.55) return 1e9;
-  return Math.max((DG.core.gLight ? DG.core.gLight() : 150)*1.35, 230);
+  return Math.max((DG.core.gLight ? DG.core.gLight() : 150)*1.5, 250);
 }
 function pickTarget(hx, hy, range, dirA, cone){
   const vis = visRange();
@@ -173,7 +180,7 @@ function pickTarget(hx, hy, range, dirA, cone){
     if (dx > range + 80 || dx < -range - 80 || dy > range + 80 || dy < -range - 80) return;
     const dd = Math.hypot(dx, dy); if (dd - r > range) return;
     if (!boss) {
-      if (disguised(o, dd)) return;
+      if (skipAuto(o, dd)) return;
       if (dd > vis && !nearFlare(o.x, o.y)) return;
     }
     const diff = Math.abs(angDiff(Math.atan2(dy, dx), dirA));
@@ -200,11 +207,15 @@ function updateAim(w, dt){
   const S = DG.S, d = S.diver, hp = handPos();
   const face = Math.atan2(Math.sin(d.ang), Math.cos(d.ang)*d.flip);
   const range = w.kind === 'melee' ? 210 : w.range;
-  const ia = S.input && S.input.aim;
+  const man = manualAim();
   let want = face, tgt = null;
-  if (ia && (ia.x || ia.y)) { want = Math.atan2(ia.y, ia.x); tgt = pickTarget(hp[0], hp[1], range, want, 0.21); }
+  if (man != null) { want = man; tgt = pickTarget(hp[0], hp[1], range, want, ASSIST); }
   else tgt = pickTarget(hp[0], hp[1], range, face, 0);
-  if (tgt) want = leadAngle(tgt, hp[0], hp[1], w.kind === 'dart' || w.kind === 'net' ? w.speed : 0);
+  if (tgt) {
+    const la = leadAngle(tgt, hp[0], hp[1], w.kind === 'dart' || w.kind === 'net' ? w.speed : 0);
+    // iki parmak: hafif yardım, atış başparmağın yönünden en çok ±12° sapar (öndeleme dahil)
+    want = man != null ? man + clamp(angDiff(la, man), -ASSIST, ASSIST) : la;
+  }
   if (tgt !== aimTgt) aimLock = 0;
   aimTgt = tgt;
   aimLock = Math.min(1, aimLock + dt*7);
@@ -271,11 +282,15 @@ function fire(w, lv, want){
   breakCamo();
 }
 function melee(w, lv, dmg, hp){
-  const reach = w.range;
+  const reach = w.range, man = manualAim();
   let best = null, bd = 1e9, br = 0;
   forT((o, boss, r) => {
-    const dd = Math.hypot(o.x - hp[0], o.y - hp[1]) - r;
-    if (dd < reach && dd < bd && (dd < 20 || clearLine(hp[0], hp[1], o.x, o.y))) { best = o; bd = dd; br = r; }
+    const dx = o.x - hp[0], dy = o.y - hp[1], cdist = Math.hypot(dx, dy), dd = cdist - r;
+    if (!(dd < reach && dd < bd)) return;
+    if (!boss && skipAuto(o, cdist)) return;
+    // iki parmak: sadece nişan yönündeki (±12° + gövde genişliği) hedefe saplanır
+    if (man != null && dd > 0 && Math.abs(angDiff(Math.atan2(dy, dx), man)) > ASSIST + Math.asin(Math.min(1, r/Math.max(cdist, 1)))) return;
+    if (dd < 20 || clearLine(hp[0], hp[1], o.x, o.y)) { best = o; bd = dd; br = r; }
   });
   if (!best) {
     jabT = 0.15; jabLen = reach*0.55;
@@ -389,11 +404,12 @@ function updateNets(dt){
 }
 function seek(p){
   let best = null, bs = 1e9;
+  const cone = manualAim() != null ? 0.5 : 1.25;   // iki parmak: torpido nişan çizgisinden fazla sapmasın
   forT((o, boss, r) => {
     const dx = o.x - p.x, dy = o.y - p.y, dd = Math.hypot(dx, dy);
     if (dd > 520) return;
-    if (!boss && disguised(o, Math.hypot(o.x - DG.S.diver.x, o.y - DG.S.diver.y))) return;
-    const diff = Math.abs(angDiff(Math.atan2(dy, dx), p.a)); if (diff > 1.25) return;
+    if (!boss && skipAuto(o, Math.hypot(o.x - DG.S.diver.x, o.y - DG.S.diver.y))) return;
+    const diff = Math.abs(angDiff(Math.atan2(dy, dx), p.a)); if (diff > cone) return;
     const sc = dd*(1 + diff);
     if (sc < bs) { bs = sc; best = o; }
   });
@@ -423,7 +439,7 @@ function updateBeam(dt, want, w, lv, aimA){
   beam.on = want;
   beam.k = want ? Math.min(1, beam.k + dt*10) : Math.max(0, beam.k - dt*7);
   if (beam.k <= 0) { beam.hits.length = 0; return; }
-  if (want) { beam.a += angDiff(aimA, beam.a)*Math.min(1, dt*9); aimAng = beam.a; breakCamo(); }
+  if (want) { beam.a += angDiff(aimA, beam.a)*Math.min(1, dt*22); aimAng = beam.a; breakCamo(); }
   const hp = handPos(), L = LOOK.trident.len*wsc(), c = Math.cos(beam.a), s = Math.sin(beam.a);
   beam.x0 = hp[0] + c*L; beam.y0 = hp[1] + s*L;
   const range = WPN.trident ? WPN.trident.range : 460;
@@ -441,7 +457,7 @@ function updateBeam(dt, want, w, lv, aimA){
       const dx = o.x - beam.x0, dy = o.y - beam.y0, t = dx*c + dy*s;
       if (t < -r || t > len + r) return;
       const px = dx - c*t, py = dy - s*t;
-      if (px*px + py*py > (r + 7)*(r + 7)) return;
+      if (px*px + py*py > (r + 16)*(r + 16)) return;
       hit(o, dmg, {stun:0.18, kx:c*60, ky:s*60, kind:'beam'}, 'beam');
       const ht = clamp(t, 0, len);
       beam.hits.push(beam.x0 + c*ht, beam.y0 + s*ht);
@@ -482,25 +498,51 @@ function updateSkills(dt){
   }
   if (sonarT > 0) sonarT -= dt;
   if (camoT > 0) { camoT -= dt; if (camoT <= 0) rings.push({x:d.x, y:d.y, r0:12, r1:60, t:0, dur:0.3, c:'150,255,220', w:1.6}); }
-  // fişekler: yavaşça batar, raflara oturur, duvardan seker
-  const U = DG.U;
+  // fişekler: yavaşça batar, raflara ve dibe oturur, duvardan seker
   for (const f of flares) {
     f.t -= dt; f.ig = Math.min(1, f.ig + dt*2.5);
-    f.vx *= Math.exp(-2.2*dt);
+    f.vx *= Math.exp(-(f.rest ? 14 : 2.2)*dt);
     f.vy += (18 - f.vy)*Math.min(1, dt*2.2);
-    const nx = f.x + f.vx*dt, ny = f.y + f.vy*dt;
-    if (ny > 0 && !U.inLedge(nx, ny + 7)) f.y = ny; else { f.vy = 0; f.vx *= 0.6; }
-    f.x = nx;
-    const b = f.y > 0 ? U.boundsAt(f.y) : [30, DG.C.WORLD_W - 30];
-    if (f.x < b[0]) { f.x = b[0]; f.vx = Math.abs(f.vx)*0.3; }
-    if (f.x > b[1]) { f.x = b[1]; f.vx = -Math.abs(f.vx)*0.3; }
-    if (f.y > S.worldH - 18) { f.y = S.worldH - 18; f.vy = 0; }
+    moveFlare(f, dt);
     f.ang += (clamp(f.vx*0.006, -0.9, 0.9) + Math.sin(time*2.6 + f.ph)*0.12 - f.ang)*Math.min(1, dt*5);
     const tx = f.x + Math.sin(f.ang)*7, ty = f.y - Math.cos(f.ang)*7;
     if (f.t > 0.3 && sparks.length < 180 && Math.random() < dt*26) sparks.push({x:tx, y:ty, vx:rnd(-40, 40), vy:rnd(-110, -30), life:rnd(0.2, 0.5), max:0.5, c:'255,170,90', g:60});
     if (Math.random() < dt*5 && puffs.length < 240) puffs.push({x:tx, y:ty, vx:rnd(-8, 8), vy:-20, r:rnd(1.2, 2.8), life:rnd(0.8, 1.4), max:1.4, ph:rnd(0, TAU)});
   }
   compact(flares, f => f.t > 0);
+}
+// Fişek gövdesi merkezden 6 px yukarı, 8 px aşağı uzanır. Raflar ve dip, çekirdeğin çizdiği dalgalı yüzeyle aynı.
+const FL_UP = 6, FL_DN = 8;
+const onRock = x => Math.abs(x - DG.C.BOAT_X) > DG.C.SHAFT_HALF;
+const ledgeTop = (i, x) => DG.U.LTOP[i] - DG.C.LEDGE_HALF + Math.sin(x*0.05 + i)*4;
+function moveFlare(f, dt){
+  const U = DG.U, C = DG.C, S = DG.S;
+  let nx = f.x + f.vx*dt, ny = f.y + f.vy*dt;
+  f.rest = false;
+  if (ny <= 0) { ny = Math.max(0, f.y); if (f.vy < 0) f.vy = 0; }
+  const b = ny > 0 ? U.boundsAt(ny) : [30, C.WORLD_W - 30];
+  if (nx < b[0]) { nx = b[0]; f.vx = Math.abs(f.vx)*0.3; }
+  if (nx > b[1]) { nx = b[1]; f.vx = -Math.abs(f.vx)*0.3; }
+  const L0 = U.layerOf(Math.min(f.y, ny));
+  for (let i = Math.max(1, L0); i <= Math.min(C.NL - 1, L0 + 2); i++) {
+    const bot = U.LTOP[i] + C.LEDGE_HALF;
+    let top = ledgeTop(i, nx);
+    if (ny + FL_DN < top - 2 && f.y + FL_DN < top - 2) continue;
+    if (ny - FL_UP > bot + 2 && f.y - FL_UP > bot + 2) continue;
+    // asansör boşluğundan yandan rafa: kenardan seker
+    if (!onRock(f.x) && onRock(nx) && ny + FL_DN > top && ny - FL_UP < bot) {
+      nx = C.BOAT_X + (nx > C.BOAT_X ? 1 : -1)*(C.SHAFT_HALF - 1); f.vx = -f.vx*0.3; top = ledgeTop(i, nx);
+    }
+    if (!onRock(nx)) continue;
+    if (f.y + FL_DN <= top + 1.5 && ny + FL_DN > top) { ny = top - FL_DN; f.vy = 0; f.rest = true; }        // üstüne oturur
+    else if (f.y - FL_UP >= bot - 1.5 && ny - FL_UP < bot) { ny = bot + FL_UP; if (f.vy < 0) f.vy = 0; }   // alttan tosladı
+    else if (ny + FL_DN > top && ny - FL_UP < bot) {                                                    // içine gömülü: en yakın yüze çık
+      if (ny < U.LTOP[i]) { ny = top - FL_DN; f.vy = 0; f.rest = true; } else { ny = bot + FL_UP; if (f.vy < 0) f.vy = 0; }
+    }
+  }
+  const floor = S.worldH + Math.sin(nx*0.02)*6;
+  if (ny + FL_DN > floor) { ny = floor - FL_DN; if (f.vy > 0) f.vy = 0; f.rest = true; }
+  f.x = nx; f.y = ny;
 }
 function throwFlare(){
   const d = DG.S.diver, c = Math.cos(d.ang)*d.flip, s = Math.sin(d.ang), hp = handPos();
@@ -720,6 +762,15 @@ DG.wpn = {
     const i = owned.findIndex(w => w.id === save.curWpn);
     const w = owned[(i + 1)%owned.length], lv = save.wpn[w.id] || 0;
     save.curWpn = w.id; swapT = 0.2; kickV = -4;
+    if (DG.core.msg) DG.core.msg(w.n + ' · Hasar x' + (1 + 0.5*lv).toFixed(1).replace('.', ','), 'var(--brass-hi)');
+    sfx('buy'); buzz(10);
+    if (DG.core.persist) DG.core.persist();
+  },
+  select(id){
+    const save = DG.S.save, w = DG.data.WEAPONS.find(x => x.id === id);
+    if (!w || save.wpn[id] == null || save.curWpn === id) return;
+    const lv = save.wpn[id] || 0;
+    save.curWpn = id; swapT = 0.2; kickV = -4;
     if (DG.core.msg) DG.core.msg(w.n + ' · Hasar x' + (1 + 0.5*lv).toFixed(1).replace('.', ','), 'var(--brass-hi)');
     sfx('buy'); buzz(10);
     if (DG.core.persist) DG.core.persist();

@@ -37,7 +37,7 @@ const LAYERS = [
     relic:{n:'Kayıp Filo Pusulası', s:'compass', c:'#e0b060', lore:'İğnesi kuzeyi değil, aşağıyı gösteriyor. Gece bölgesinde bir noktada çıldırıyor.', bonus:{k:'dmg', v:0.1}}},
   {name:'Gece Bölgesi', top:1000, bot:1500, wall:80, rock:[34,40,48], waterBot:[3,9,22], decor:'steelwreck',
     mons:[['viper',0,1,0.7],['shark',0,1,1.0],['angler',0,1,0.9],['squid',0.3,1,0.6],['mimic',0,1,0.4]],
-    items:[[I('Balina dişi','ingot','#efe8d8'),I('Pirinç lomboz','compass','#e0b060')],[I('Viking gümüşü','coin','#d7e2ea'),I('Gemi çanı','amphora','#d0a050')],[I('Viking bileziği','crown','#ffd24a'),I('Kraliyet mührü','tablet','#c0392b')]],
+    items:[[I('Balina dişi','ingot','#efe8d8'),I('Pirinç lomboz','compass','#e0b060')],[I('Viking gümüşü','coin','#d7e2ea'),I('Gemi çanı','amphora','#d0a050')],[I('Viking sandığı','chest','#5b3a22'),I('Viking bileziği','crown','#ffd24a')]],
     relic:{n:'Kraken Gözü', s:'eye', c:'#ffcc33', lore:'Avuç kadar bir göz taşı. Karanlıkta ona bakınca sana geri bakıyor ve kristallerle dolu mağaraları gösteriyor.', bonus:{k:'light', v:0.15}}},
   {name:'Kristal Mağaralar', top:1500, bot:2200, wall:110, rock:[110,140,170], waterBot:[8,22,42], decor:'crystal',
     mons:[['jelly',0,1,1.2],['viper',0,1,0.8],['squid',0,1,0.7],['octopus',0,1,0.5],['serpent',0.5,1,0.3]],
@@ -57,7 +57,7 @@ const LAYERS = [
     relic:{n:'Kalipso İncisi', s:'pearl', c:'#f2f6ff', lore:'Akdeniz\'in en derin noktasından. İncinin içinde bir kapı çizili; çukurun dibindeki çatlaktan mavi bir ışık sızıyor. Atlantis gerçek.', bonus:{k:'value', v:0.2}}},
   {name:'Atlantis', top:5267, bot:6500, wall:140, rock:[30,40,70], waterBot:[8,18,60], decor:'atlantis',
     mons:[['viper',0,1,1.0],['squid',0,1,0.8],['serpent',0,1,0.6],['guardian',0.2,1,0.9],['mimic',0,1,0.4]],
-    items:[[I('Orikalkum sikke','coin','#ff9a4a'),I('Kristal kiremit','crystal','#7fe8ff')],[I('Atlantis tableti','tablet','#4aa0ff'),I('Tapınak kandili','amphora','#ffd24a')],[I('Kraliyet tacı','crown','#ffd24a'),I('Güneş taşı','diamond','#ffe080')]],
+    items:[[I('Orikalkum sikke','coin','#ff9a4a'),I('Kristal kiremit','crystal','#7fe8ff')],[I('Atlantis tableti','tablet','#4aa0ff'),I('Tapınak kandili','amphora','#ffd24a')],[I('Hazine sandığı','chest','#3a5a8a'),I('Kraliyet tacı','crown','#ffd24a')]],
     relic:{n:'Atlantis\'in Kalbi', s:'heart', c:'#ffd86a', lore:'Derinlerin Kalbi\'nin büyük kardeşi. Avucunda atıyor. Onu aldığın an, çukurun dibinde bir şey gözlerini açtı.', bonus:{k:'value', v:0.5}}},
 ];
 // Her katın üst rengi bir üstteki katın alt rengidir: deniz kesintisiz görünür.
@@ -107,7 +107,7 @@ const WEAPONS = [
   {id:'net',     n:'Ağ atar',                unlock:2, dmg:0.5, cd:2.8,  kind:'net',    speed:620,  range:420, radius:100, stun:4, d:'Ağ fırlatır, içindeki bütün canavarları 4 saniye tutar.'},
   {id:'aps',     n:'Sualtı tüfeği',          unlock:4, dmg:0.55,cd:0.11, kind:'dart',   speed:1150, range:600, spread:0.08, d:'Su altında ateş eden seri tüfek. Sürülere birebir.'},
   {id:'sonic',   n:'Sonik top',              unlock:5, dmg:1.6, cd:2.4,  kind:'cone',   range:290, angle:0.65, stun:2, d:'Koni şeklinde ses dalgası: iter, sersemletir.'},
-  {id:'torpedo', n:'Mini torpido',           unlock:7, dmg:9,   cd:3.8,  kind:'homing', speed:520,  range:900, blast:130, d:'Hedefi takip eder, patlayınca çevreye hasar verir.'},
+  {id:'torpedo', n:'Mini torpido',           unlock:7, dmg:11,  cd:2.2,  kind:'homing', speed:520,  range:900, blast:130, d:'Hedefi takip eder, patlayınca çevreye hasar verir.'},
   {id:'trident', n:'Poseidon\'un üç dişlisi',unlock:9, dmg:7,   cd:0,    kind:'beam',   range:460, d:'Basılı tuttukça yakan bir ışın. Atlantis\'in silahı (saniyede hasar).'},
 ];
 
@@ -132,7 +132,7 @@ DG.data = {
   TRACK_LABEL: {tank:'HAVA', speed:'HIZ', bag:'ÇANTA', light:'IŞIK', suit:'DERİNLİK', armor:'KORUMA'},
   TRACK_W: {tank:1, speed:1, bag:1.1, light:0.8, suit:1.2, armor:0.9},
   STEP_COST: [0, 1, 3, 9],
-  KM: {speed:[1,1.2,1.4,1.65], suit:[0.3,0.55,0.8,1.0], bag:[5,7,9,12], light:[70,110,160,220], armor:[0,0.15,0.3,0.45]},
+  KM: {speed:[1,1.2,1.4,1.65], suit:[0.3,0.55,0.8,1.0], bag:[5,7,9,12], light:[100,120,145,170], armor:[0,0.15,0.3,0.45]},
   WPN_COST: [6, 4, 10, 25],    // açma ve seviye 1-3, açıldığı katın fiyat birimiyle
   SKILL_COST: [3, 5, 14],      // açma ve seviye 1-2
   SKILL_CD: [1, 0.8, 0.6],

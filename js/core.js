@@ -70,6 +70,8 @@ const cam = {x:0, y:0};
 const S = DG.S = {save, diver, cam, W:0, H:0, DPR:1, t:0, dt:0, items:[], mons:[], playing:false, lifting:false, riding:false,
   input:{fire:false, mx:0, my:0}, worldH:WORLD_H, darkAlpha:0, glowSpots:[], relicHeld:false, bag:[], o2:30, slowT:0, inkT:0};
 let mods = null, bagBonus = 0, diving = false, hurtT = 0, shakeT = 0, fullMsgT = 0, overT = 0, curStationZone = -1, retWarned = false, shownMoney = 0;
+// Kamera ofsetleri: hareket yönüne bakış (camL*) ve final hücumunda canavarın kafasına yaslanma (lean*).
+let camLX = 0, camLY = 0, leanX = 0, leanY = 0;
 let floaters = [], bubbles = [], bubbleT = 0, lastLayer = -1, lastBestShown = 0, hudBottom = 120;
 const keys = new Set();
 
@@ -146,7 +148,8 @@ function tankAt(t, k){
   return Math.round(need*(1.35 - 0.02*t));
 }
 const bagAt = k => KM.bag[k] + save.tier + mods.bag;
-const lightAt = k => KM.light[k]*(1 + 0.05*save.tier)*mods.light;
+// Işık katla büyümez: derin katları karanlık yapan DARK tablosu olsun, fener her katta aynı havuzu açar.
+const lightAt = k => KM.light[k]*mods.light;
 const gTank = () => tankAt(save.tier, save.lv.tank)*mods.air;
 const gBag = () => bagAt(save.lv.bag) + bagBonus;
 const gLight = () => lightAt(save.lv.light);
@@ -175,6 +178,8 @@ function fmtMoney(n){
   return '₺' + n;
 }
 const fmtM = m => Math.round(m).toLocaleString('tr-TR') + ' m';
+// Rakamdan sonra Türkçe ek (yönelme / bulunma), n % 10 ile seçilir (0 = 10 'on').
+const DAT = ["'a","'e","'ye","'e","'e","'e","'ya","'ye","'e","'a"], LOC = ["'da","'de","'de","'te","'te","'te","'da","'de","'de","'da"];
 
 // ---------- ses ----------
 let actx = null;
@@ -316,7 +321,7 @@ function stationAbove(y){ let best = 0; for (let s = 1; s <= save.tier; s++) if 
 function startLift(){
   if (!S.playing || S.lifting || diver.y < 40) return false;
   S.lifting = true; S.liftTo = stationAbove(diver.y); sfx('balloon'); buzz(30);
-  msg('Kaldırma balonu şişti! ' + (S.liftTo ? 'İstasyon ' + S.liftTo : 'Tekne') + 'ye çıkıyorsun.', 'var(--amber)');
+  msg('Kaldırma balonu şişti! ' + (S.liftTo ? 'İstasyon ' + S.liftTo + DAT[S.liftTo % 10] : 'Tekneye') + ' çıkıyorsun.', 'var(--amber)');
   return true;
 }
 function ink(sec){ S.inkT = Math.max(S.inkT, sec); }
@@ -367,12 +372,19 @@ cv.addEventListener('pointerdown', e => {
   const twin = save.ctrl === 2 && S.playing;
   const st = twin && e.clientX > S.W/2 ? aim : joy;
   if (st.active) return;
-  st.active = true; st.id = e.pointerId; st.ox = st.x = e.clientX; st.oy = st.y = e.clientY;
+  st.active = true; st.id = e.pointerId; st.x = e.clientX; st.y = e.clientY;
+  // Yüzme çubuğunun merkezi kenarlardan 60 px içeride: kenara yakın dokununca da her yöne tam hız alınır.
+  st.ox = st === joy ? clamp(st.x, 60, S.W - 60) : st.x; st.oy = st === joy ? clamp(st.y, 60, S.H - 60) : st.y;
   if (st === aim) { S.input.fire = true; setAim(); }
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
 });
 cv.addEventListener('pointermove', e => {
-  if (joy.active && e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; }
+  if (joy.active && e.pointerId === joy.id) {
+    joy.x = e.clientX; joy.y = e.clientY;
+    // Tasmalı merkez: taban başparmağı izler, yön değiştirince dalgıç hemen döner.
+    const dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy);
+    if (L > 60) { joy.ox = joy.x - dx/L*60; joy.oy = joy.y - dy/L*60; }
+  }
   if (aim.active && e.pointerId === aim.id) { aim.x = e.clientX; aim.y = e.clientY; setAim(); }
 });
 const stickEnd = e => {
@@ -384,8 +396,11 @@ addEventListener('blur', () => { keys.clear(); joy.active = false; aim.active = 
 function setCtrl(n){
   save.ctrl = n; persist();
   aim.active = false; S.input.aim = null; S.input.fire = false;
-  const t = n === 2 ? 'KONTROL: 2 PARMAK' : 'KONTROL: 1 PARMAK';
-  $('ctrlBtn').textContent = t; $('ctrlIntro').textContent = t;
+  // İki parmak modunda düğme kümesi sağ alta toplanır: sol yarı yüzmeye kalır.
+  $('controls').classList.toggle('twin', n === 2);
+  // HUD düğmesi kısa etiket taşır (dar panelde tek satır kalsın), girişteki düğme uzun olanı.
+  const t = n === 2 ? '2 PARMAK' : '1 PARMAK';
+  $('ctrlBtn').textContent = t; $('ctrlIntro').textContent = 'KONTROL: ' + t;
   $('ctrlIntro').setAttribute('aria-pressed', String(n === 2));
 }
 $('ctrlBtn').addEventListener('click', e => { e.currentTarget.blur(); setCtrl(save.ctrl === 2 ? 1 : 2); msg(save.ctrl === 2 ? 'İki parmak: sol yarı yüz, sağ yarı nişan al ve ateş et.' : 'Tek parmak: her yerden yüz, ATEŞ düğmesiyle ateş et.', 'var(--relic)'); });
@@ -422,7 +437,22 @@ function skillPress(id){ if (S.playing && DG.wpn && DG.wpn.skill) DG.wpn.skill(i
 const fireBtn = $('btnFire');
 fireBtn.addEventListener('pointerdown', e => { e.preventDefault(); S.input.fire = true; try { fireBtn.setPointerCapture(e.pointerId); } catch (_) {} });
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) fireBtn.addEventListener(ev, () => { S.input.fire = false; });
-$('btnWpn').addEventListener('pointerdown', e => { e.preventDefault(); if (DG.wpn && DG.wpn.next) DG.wpn.next(); });
+// SİLAH: sahip olunan silahların listesini açar, tek dokunuşla seçilir (Q tuşu sırayla dolaşır).
+let pickT = 0;
+function closePick(){ $('wpnPick').hidden = true; pickT = 0; }
+function openPick(){
+  const box = $('wpnPick'), owned = WEAPONS.filter(w => save.wpn[w.id] != null);
+  if (owned.length < 2) { if (DG.wpn && DG.wpn.next) DG.wpn.next(); return; }
+  box.innerHTML = '';
+  for (const w of owned) {
+    const b = el('button', null, DG.wpn && DG.wpn.shortName ? DG.wpn.shortName(w.id) : w.n); b.type = 'button';
+    b.setAttribute('aria-pressed', String(save.curWpn === w.id));
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (DG.wpn && DG.wpn.select) DG.wpn.select(w.id); else save.curWpn = w.id; closePick(); });
+    box.appendChild(b);
+  }
+  box.hidden = false; pickT = 4;
+}
+$('btnWpn').addEventListener('pointerdown', e => { e.preventDefault(); if ($('wpnPick').hidden) openPick(); else closePick(); });
 $('btnDash').addEventListener('pointerdown', e => { e.preventDefault(); skillPress('dash'); });
 for (let i = 0; i < 3; i++) $('btnSk' + i).addEventListener('pointerdown', e => { e.preventDefault(); const id = save.equip[i]; if (id) skillPress(id); });
 $('shopBtn').addEventListener('click', () => openShop());
@@ -485,8 +515,8 @@ function renderShop(){
     }
   } else if (shopTab === 'wpn') {
     for (const w of WEAPONS) {
-      const owned = save.wpn[w.id] != null, lv = owned ? save.wpn[w.id] : -1, locked = save.tier < w.unlock;
-      const sub = locked ? 'Kat ' + (w.unlock + 1) + '\'de açılır.' : w.d + (owned ? ' · Hasar x' + (1 + 0.5*lv).toFixed(1).replace('.', ',') : '');
+      const owned = save.wpn[w.id] != null, lv = owned ? save.wpn[w.id] : -1, locked = !owned && save.tier < w.unlock;
+      const sub = locked ? 'Kat ' + (w.unlock + 1) + LOC[(w.unlock + 1) % 10] + ' açılır.' : w.d + (owned ? ' · Hasar x' + (1 + 0.5*lv).toFixed(1).replace('.', ',') : '');
       const r = row(w.n, owned && save.curWpn === w.id ? 'ELİNDE' : 'SİLAH', sub, owned ? pips(3, lv) : null);
       if (locked) r.classList.add('locked');
       const col = el('div', 'btncol');
@@ -502,9 +532,9 @@ function renderShop(){
   } else if (shopTab === 'skill') {
     box.appendChild(el('p', 'note', 'Hız patlaması her zaman takılı. Diğerlerinden en fazla 3 tanesini tuşlara takabilirsin.'));
     for (const s of SKILLS) {
-      const owned = save.skills[s.id] != null, lv = owned ? save.skills[s.id] : -1, locked = save.tier < s.unlock;
+      const owned = save.skills[s.id] != null, lv = owned ? save.skills[s.id] : -1, locked = !owned && save.tier < s.unlock;
       const cd = Math.round(s.cd*D.SKILL_CD[Math.max(0, lv)]);
-      const r = row(s.n, s.id === 'dash' ? 'HER ZAMAN' : save.equip.includes(s.id) ? 'TAKILI' : 'YETENEK', locked ? 'Kat ' + (s.unlock + 1) + '\'de açılır.' : s.d + ' Bekleme: ' + cd + ' sn', owned ? pips(2, lv) : null);
+      const r = row(s.n, s.id === 'dash' ? 'HER ZAMAN' : save.equip.includes(s.id) ? 'TAKILI' : 'YETENEK', locked ? 'Kat ' + (s.unlock + 1) + LOC[(s.unlock + 1) % 10] + ' açılır.' : s.d + ' Bekleme: ' + cd + ' sn', owned ? pips(2, lv) : null);
       if (locked) r.classList.add('locked');
       const col = el('div', 'btncol');
       if (locked) col.appendChild(btn('Kilitli', 'buy', false));
@@ -647,7 +677,7 @@ function rideTo(s){
     else {
       const p = stationPos(s);
       diver.x = p.x; diver.y = s === 0 ? 0 : p.y - 50; diver.vx = diver.vy = 0;
-      cam.y = diver.y - S.H*0.45;
+      cam.y = diver.y - S.H*0.45; camLX = camLY = leanX = leanY = 0;
       save.station = s; S.o2 = gTank(); persist();
       ride.classList.remove('on');
       setTimeout(() => { ride.hidden = true; S.riding = false; S.playing = true; if (S.onArrive) { const f = S.onArrive; S.onArrive = null; f(); } }, 320);
@@ -693,7 +723,8 @@ $('demoBtn').addEventListener('click', () => {
 });
 $('startBtn').addEventListener('click', () => {
   audio(); $('intro').hidden = true; S.playing = true;
-  toast(LAYERS[layerOf(diver.y)].name, 'KAT ' + (layerOf(diver.y) + 1) + ' / ' + NL);
+  const z0 = stationZone(), L0 = z0 > 0 ? z0 : layerOf(diver.y);
+  toast(LAYERS[L0].name, 'KAT ' + (L0 + 1) + ' / ' + NL);
   hint('move', 'Ekrana dokun ve sürükle: dalgıç parmağının yönüne yüzer.');
   if (save.relics.includes(NL - 1) && !save.bossDone) setTimeout(bossIntro, 600);
 });
@@ -702,7 +733,7 @@ $('startBtn').addEventListener('click', () => {
 function wakeAtStation(){
   const s = stationAbove(diver.y + 1);
   const p = stationPos(s);
-  diver.x = p.x; diver.y = s === 0 ? 0 : p.y - 50; diver.vx = diver.vy = 0;
+  diver.x = p.x; diver.y = s === 0 ? 0 : p.y - 50; diver.vx = diver.vy = 0; camLX = camLY = leanX = leanY = 0;
   save.station = s;
 }
 function faint(){
@@ -745,13 +776,18 @@ function update(dt){
   const [ax, ay] = S.playing && !S.lifting ? moveInput() : [0, 0];
   const sp = gSpeed();
   if (S.lifting) {
-    const p = stationPos(S.liftTo), ty = S.liftTo === 0 ? 0 : p.y - 50;
+    const p = stationPos(S.liftTo), li = layerOf(diver.y);
+    let ty = S.liftTo === 0 ? 0 : p.y - 50;
+    // Raf altındaysan önce boşluğa yanaş: yoksa balon kayayı delip geçiyordu.
+    if (li > 0 && Math.abs(diver.x - BOAT_X) > SHAFT_HALF - 40) ty = Math.max(ty, LTOP[li] + LEDGE_HALF + 40);
     // Hedefe yaklaşınca yavaşla, varınca dur: yoksa hız istasyonun ötesine fırlatıyordu.
     const dx = p.x - diver.x, dy = ty - diver.y, L = Math.hypot(dx, dy) || 1, s2 = Math.min(Math.max(sp, 200)*2.6, L*4 + 60);
     diver.vx += (dx/L*s2 - diver.vx)*Math.min(1, dt*6); diver.vy += (dy/L*s2 - diver.vy)*Math.min(1, dt*6);
     if (L < 30) { S.lifting = false; diver.vx *= 0.15; diver.vy *= 0.15; }
   } else {
-    const has = ax || ay, f = Math.min(1, dt*(has ? 7 : 2.5));
+    // Sıkı tutuş: parmak kalkınca dalgıç kısa sürede durur. Hız patlamasında eski süzülme korunur ki atılış boyu kısalmasın.
+    const dashing = !!(DG.wpn && DG.wpn.dashActive && DG.wpn.dashActive());
+    const has = ax || ay, f = Math.min(1, dt*(has ? 9 : dashing ? 2.5 : 6));
     diver.vx += (ax*sp - diver.vx)*f; diver.vy += (ay*sp - diver.vy)*f;
   }
   const px = diver.x, py = diver.y;
@@ -777,8 +813,9 @@ function update(dt){
   const target = spd > 12 ? clamp(Math.atan2(diver.vy, diver.vx*diver.flip), -1.35, 1.35) : 0;
   diver.ang += (target - diver.ang)*Math.min(1, dt*8);
 
-  const m = toM(diver.y), L = layerOf(diver.y), maxO2 = gTank();
   const zone = stationZone(); curStationZone = zone;
+  // Derin istasyon kendi katının başı sayılır (dalgıç rafın 50 px üstünde, yani bir üst katta durur).
+  const m = toM(diver.y), L = zone > 0 ? zone : layerOf(diver.y), maxO2 = gTank();
   if (S.playing) {
     const over = diver.y > limitY() + 8;
     if (zone >= 0) { S.o2 = Math.min(maxO2, S.o2 + dt*maxO2/1.5); setHid($('warn'), true); }
@@ -806,18 +843,17 @@ function update(dt){
           if (!diving) startDive();
           it.taken = true; S.bag.push(it); sfx('pick');
           float(it.x, it.y - 18, it.def.n + ' ' + fmtMoney(it.value), it.def.c);
+        } else if (save.inv.spareBag > 0) {
+          // Çanta dolu: önce yedek çanta açılır; parça bir sonraki karede alınır.
+          save.inv.spareBag--; const add = Math.ceil(bagAt(save.lv.bag)*0.5); bagBonus += add; persist();
+          msg('Yedek çanta açıldı! +' + add + ' yer', 'var(--amber)');
         } else {
-          // Çanta dolu: daha değerli bir parça en ucuzla yer değiştirir (ya da yedek çanta açılır).
+          // Yedek çanta yok: daha değerli bir parça en ucuzla yer değiştirir.
           let lo = 0;
           for (let i = 1; i < S.bag.length; i++) if (S.bag[i].value < S.bag[lo].value) lo = i;
           if (S.bag.length && it.value > S.bag[lo].value*1.15) {
-            if (save.inv.spareBag > 0) {
-              save.inv.spareBag--; const add = Math.ceil(bagAt(save.lv.bag)*0.5); bagBonus += add; persist();
-              msg('Yedek çanta açıldı! +' + add + ' yer', 'var(--amber)');
-            } else {
-              S.bag[lo] = it; it.taken = true; sfx('pick');
-              float(it.x, it.y - 18, 'Takas: ' + it.def.n + ' ' + fmtMoney(it.value), it.def.c);
-            }
+            S.bag[lo] = it; it.taken = true; sfx('pick');
+            float(it.x, it.y - 18, 'Takas: ' + it.def.n + ' ' + fmtMoney(it.value), it.def.c);
           } else if (S.t - fullMsgT > 2.5) { fullMsgT = S.t; msg('Çanta dolu! Daha değerli parçalar ucuzlarla yer değiştirir. Satmak için istasyona dön.', 'var(--amber)'); }
         }
       }
@@ -844,9 +880,16 @@ function update(dt){
   for (const fl of floaters) { fl.t += dt; fl.y -= 26*dt; }
   floaters = floaters.filter(fl => fl.t < 1.6);
 
-  cam.x = WORLD_W > S.W ? clamp(diver.x - S.W/2, 0, WORLD_W - S.W) : (WORLD_W - S.W)/2;
+  // Kamera gidilen yöne bakar: hızlı dalışta da önden geleni görürsün.
+  camLX += (clamp(diver.vx*0.22, -S.W*0.22, S.W*0.22) - camLX)*Math.min(1, dt*3);
+  camLY += (clamp(diver.vy*0.3, -S.H*0.25, S.H*0.25) - camLY)*Math.min(1, dt*3);
+  // Hücum hazırlığında kamera canavarın kafasına doğru kayar (gözler ekranda kalsın).
+  const bf = bossOn() && DG.boss.focus ? DG.boss.focus() : null;
+  const lx = bf ? clamp(bf.x - diver.x, -S.W*0.7, S.W*0.7)*0.4 : 0, ly = bf ? clamp(bf.y - diver.y, -S.H*0.5, S.H*0.5)*0.3 : 0;
+  leanX += (lx - leanX)*Math.min(1, dt*3); leanY += (ly - leanY)*Math.min(1, dt*3);
+  cam.x = WORLD_W > S.W ? clamp(diver.x + camLX + leanX - S.W/2, 0, WORLD_W - S.W) : (WORLD_W - S.W)/2;
   // Final dövüşünde tekne ve gökyüzü daha çok görünsün.
-  cam.y += (Math.max(-S.H*(bossOn() ? 0.38 : 0.3), diver.y - S.H*0.45) - cam.y)*Math.min(1, dt*6);
+  cam.y += (Math.max(-S.H*(bossOn() ? 0.38 : 0.3), diver.y - S.H*0.45 + camLY + leanY) - cam.y)*Math.min(1, dt*8);
 
   updateHUD(m, L, maxO2, zone);
 }
@@ -880,14 +923,18 @@ function updateHUD(m, L, maxO2, zone){
   if (S.bag.length) setTxt($('hCarryV'), fmtMoney(carry));
   setTxt($('hBest'), Math.round(save.best).toLocaleString('tr-TR'));
   setTxt($('hStage'), 'KAT ' + (L + 1) + '/' + NL + (S.W > 430 ? ' · ' + LAYERS[L].name.toLocaleUpperCase('tr-TR') : '') + (save.ng ? ' · S+' + save.ng : ''));
-  if ((S.t*4|0) !== ((S.t - S.dt)*4|0)) updateCtx();
+  // İstasyon bölgesine girip çıkınca Dükkân/Asansör ile düğme kümesi aynı karede yer değiştirir.
+  if (memo('core:zone', zone) || (S.t*4|0) !== ((S.t - S.dt)*4|0)) updateCtx();
   updateControls();
 }
 function nextGoal(){
   if (save.bossDone) { const c = ngCost(); return {txt:'HEDEF: YENİ SEFER+ ' + fmtMoney(c), f:demo ? 1 : save.money/c}; }
   if (!gearDone()) {
+    // Önce geliri hemen artıran ekipman. Sığ sınırda karanlık yokken ışık yükseltmesi fark edilmez, sona kalır.
+    const PRI = ['suit','bag','tank','speed','armor','light'];
+    const dim = darkAtM(toM(limitY())) < 0.4;
     let best = null;
-    for (const k of TRACKS) { const lv = save.lv[k]; if (lv < 3) { const c = upCost(k, lv + 1); if (!best || c < best.c) best = {k, c}; } }
+    for (const k of PRI) { const lv = save.lv[k]; if (lv < 3) { const c = upCost(k, lv + 1), e = c*(k === 'light' && dim ? 3 : 1); if (!best || e < best.e*0.75) best = {k, c, e}; } }
     return {txt:'SIRADAKİ: ' + TRACK_LABEL[best.k] + ' ' + fmtMoney(best.c), f:demo ? 1 : save.money/best.c};
   }
   if (!relicDone()) return {txt:save.tier === NL - 1 ? 'HEDEF: ATLANTİS\'İN KALBİ' : 'HEDEF: KATIN ESERİ · ' + fmtM(LAYERS[save.tier].bot), f:clamp(save.best/LAYERS[save.tier].bot, 0, 1)};
@@ -912,9 +959,11 @@ function updateCtx(){
 }
 const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', camo:'KAMUFLAJ'};
 function updateControls(){
-  const show = S.playing && diver.y > 30;
+  if (pickT > 0) { pickT -= S.dt; if (pickT <= 0) closePick(); }
+  // İstasyonda düğme kümesi gizlenir: altında kalan Dükkân/Asansör düğmelerine basılabilsin.
+  const show = S.playing && diver.y > 30 && curStationZone < 0;
   setHid($('controls'), !show);
-  if (!show) return;
+  if (!show) { if (!$('wpnPick').hidden) closePick(); return; }
   setHid(fireBtn, save.ctrl === 2);
   const w = WEAPONS.find(x => x.id === save.curWpn) || WEAPONS[0];
   setTxt($('wpnName'), DG.wpn && DG.wpn.shortName ? DG.wpn.shortName(w.id) : w.n.split(' ')[0].toLocaleUpperCase('tr-TR'));
@@ -1392,7 +1441,7 @@ function setup(){
   const p = stationPos(save.station);
   diver.x = p.x; diver.y = save.station === 0 ? 0 : p.y - 50; diver.vx = diver.vy = 0;
   generate(); S.o2 = gTank();
-  cam.y = diver.y - S.H*0.45; lastLayer = layerOf(diver.y);
+  cam.y = diver.y - S.H*0.45; camLX = camLY = leanX = leanY = 0; lastLayer = save.station > 0 ? save.station : layerOf(diver.y);
   $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK';
   setCtrl(save.ctrl === 2 ? 2 : 1);
   if (DG.boss && DG.boss.reset) DG.boss.reset();

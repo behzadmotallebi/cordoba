@@ -8,7 +8,7 @@
 const DG = window.DG;
 const TAU = Math.PI*2;
 const NAME = 'Derinlerin Efendisi';
-const MAX_HP = 2300, BOAT_MAX = 100;
+const MAX_HP = 3200, BOAT_MAX = 100;
 const N = 30, SP = 34;                       // gövde boğumu sayısı ve aralığı (px)
 // Evre ayarları: [_, evre 1, evre 2, evre 3]
 const RAM_GAP  = [0, 11, 9, 6.5];            // iki toslama arası dönüş süresi (sn)
@@ -22,6 +22,9 @@ const TWIND    = [0, 0.62, 0.52, 0.42];      // dokunaç savurma uyarısı
 const SQUEEZE  = [0, 0, 3, 4];               // tekneyi saran dokunaç: gemi hasarı / sn
 const STRIKERS = [0, 1, 1, 2];
 const TENT_HP  = [0, 45, 55, 60];
+const TENT_K   = {bang:3, torpedo:2.5};      // patlayıcılar dokunacı koparır
+const STAG_K   = {sonic:25, torpedo:25};     // ağır darbe toslamayı keser (vuruş başına)
+const STAG_W   = {beam:0.7};                 // ışın gözleri yakar ama toslamayı tek başına zor keser (sersemletmeye sayılan pay)
 
 const rnd = (a, b) => a + Math.random()*(b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -142,16 +145,16 @@ function mult(p){
   }
   return 1;
 }
-function dealt(d){
+function dealt(d, sw){
   const floor = phase === 1 ? MAX_HP*2/3 : phase === 2 ? MAX_HP/3 : 0;
   hp = Math.max(floor, hp - d);
-  if (st === 'windup' || st === 'ram') stagAcc += d;
+  if (st === 'windup' || st === 'ram') stagAcc += d*(sw == null ? 1 : sw);
 }
 const WEAK_LBL = {eye:['GÖZ', '#ffcf3a'], gill:['SOLUNGAÇ', '#7fe8ff'], mouth:['AĞIZ', '#ff8a5a']};
-function apply(p, a){
+function apply(p, a, sw){
   let m = mult(p);
   if (st === 'stagger') m *= 1.2;
-  dealt(a*m);
+  dealt(a*m, sw);
   num(p, a*m, m > 1.01 ? (WEAK_LBL[p.kind] ? WEAK_LBL[p.kind][1] : '#ffcf3a') : m < 0.7 ? '#9fb0bd' : '#e6f4f7');
   if (st === 'windup' || st === 'ram') DK[p.kind] = (DK[p.kind] || 0) + a*m;
   if (p.kind === 'body') flashB = Math.min(1, flashB + 0.35); else flashH = Math.min(1, flashH + 0.45);
@@ -170,7 +173,8 @@ function apply(p, a){
   }
 }
 function tentDmg(t, a, k, share){
-  if (t.st === 'cut' || t.st === 'grow') return false;
+  if (t.st === 'cut' || t.st === 'grow') return 0;
+  a *= TENT_K[k] || 1;
   t.hp -= a; t.fl = 1;
   if (share) dealt(a*0.3);
   if (k === 'net' && t.st !== 'boat') {
@@ -178,7 +182,7 @@ function tentDmg(t, a, k, share){
     if (t.st === 'grab') release(t, true); else if (t.st === 'wind' || t.st === 'strike') { t.st = 'idle'; t.cd = 1.5; }
   }
   if (t.hp <= 0) sever(t);
-  return true;
+  return a;
 }
 // Hasar sayıları: parça başına 0,18 sn toplanır, sonra tek sayı (silahlarla aynı ×10 ölçek).
 const NUMP = [];
@@ -201,7 +205,7 @@ function resolve(){
   const groups = {};
   for (let i = 0; i < L; i += 3) {
     const p = pend[i], a = pend[i + 1], k = pend[i + 2];
-    if (SINGLE[k]) { if (p.tent) { if (tentDmg(p.tent, a, k, true)) num(p, a, '#ffb0a0'); } else apply(p, a); continue; }
+    if (SINGLE[k]) { if (p.tent) { const v = tentDmg(p.tent, a, k, true); if (v) num(p, v, '#ffb0a0'); } else apply(p, a); continue; }
     (groups[k] || (groups[k] = [])).push(p, a);
   }
   pend.length = 0;
@@ -214,11 +218,12 @@ function resolve(){
     const seen = [];
     for (let i = 0; i < g.length; i += 2) {
       const p = g[i], a = g[i + 1];
-      if (p.tent && seen.indexOf(p.tent) < 0) { seen.push(p.tent); if (tentDmg(p.tent, a, k, false)) num(p, a, '#ffb0a0'); }
+      if (p.tent && seen.indexOf(p.tent) < 0) { seen.push(p.tent); const v = tentDmg(p.tent, a, k, false); if (v) num(p, v, '#ffb0a0'); }
       if (a < mx*0.85) continue;
       const v = a*mult(p); if (v > bv) { bv = v; best = p; ba = a; }
     }
-    if (best) { if (best.tent) dealt(ba*0.3); else apply(best, ba); }
+    if (best) { const sw = STAG_W[k]; if (best.tent) dealt(ba*0.3, sw); else apply(best, ba, sw); }
+    if (STAG_K[k] && (st === 'windup' || st === 'ram')) stagAcc += STAG_K[k];
   }
 }
 
@@ -546,7 +551,7 @@ function think(dt, live){
       steer(ramX, 1000, 720, 2.3, dt);
       if (Math.hypot(H.x - ramX, H.y - 1000) < 120 || stT > 3.5) {
         setSt('windup'); stagAcc = 0; stagNeed = STAG[phase]; warnT = 0; for (const k in DK) delete DK[k];
-        msg(hintRam ? 'Gemiye hücum ediyor! Gözlerini vur!' : 'GEMİYE HÜCUM! Gözleri parlarken vur, durdur!', 'var(--danger)');
+        msg(hintRam ? 'Gemiye hücum ediyor! Gözlerini vur!' : 'GEMİYE HÜCUM! Gözleri parlarken vur. SONİK ve TORPİDO çabuk durdurur.', 'var(--danger)');
         sfx('growl');
       }
       break;
@@ -592,7 +597,7 @@ function think(dt, live){
           if (!t) { endSiege(); break; }
           if (t.st === 'grab') release(t, false);
           siegeOn = true; siegeTent = t; t.st = 'boat'; t.t = 0; t.wrap = 0; creakT = 0.6;
-          msg(hintSiege ? 'Dokunaç tekneyi sardı!' : 'Dokunaç tekneyi sardı! Su altındaki kolunu kes.', 'var(--danger)');
+          msg(hintSiege ? 'Dokunaç tekneyi sardı! MIZRAK ya da TORPİDO koparır.' : 'Dokunaç tekneyi sardı! Su altındaki kolunu kes: MIZRAK ya da TORPİDO tek vuruşta koparır.', 'var(--danger)');
           hintSiege = true; sfx('growl'); buzz(60);
         }
       } else {
@@ -1334,9 +1339,20 @@ function drawSmoke(ctx, ox, oy){
   }
   ctx.restore();
 }
+// Sağ alttaki kontrol kümesi (silah/yetenek düğmeleri, güvenli alan dahil). Göstergeler bunun altına düşmesin.
+// Saniyede bir ölçülür (boyut değişince hemen); ölçülemezse 206 + 14 px kutu ve pay varsayılır.
+const CL = {l:0, t:0, w:-1, h:-1, at:-9};
+function ctlBox(W, Hh){
+  if (CL.w !== W || CL.h !== Hh || T - CL.at > 1 || T < CL.at) {
+    CL.w = W; CL.h = Hh; CL.at = T;
+    const el = document.getElementById('controls'), r = el ? el.getBoundingClientRect() : null;
+    if (r && r.width > 0) { CL.l = r.left - 22; CL.t = r.top - 30; } else { CL.l = W - 240; CL.t = Hh - 250; }
+  }
+  return CL;
+}
 function drawUI(ctx, ox, oy){
   const S = DG.S, W = S.W, Hh = S.H;
-  const hx = wx(60, -10) + ox, hy = wy(60, -10) + oy;
+  const hx = wx(60, -10) + ox, hy = wy(60, -10) + oy, cb = ctlBox(W, Hh);
   ctx.save();
   if (st === 'windup' || st === 'ram') {
     // gemiye uzanan kesik çizgi ve durdurma göstergesi
@@ -1349,17 +1365,23 @@ function drawUI(ctx, ox, oy){
       ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(60,8,8,.55)'; ctx.beginPath(); ctx.arc(hx, hy, R, 0, TAU); ctx.stroke();
       ctx.strokeStyle = '#f4cf7a'; ctx.beginPath(); ctx.arc(hx, hy, R, -Math.PI/2, -Math.PI/2 + TAU*k); ctx.stroke();
       ctx.font = '700 12px "Chakra Petch", monospace'; ctx.textAlign = 'center';
-      const tx = clamp(hx, 52, W - 52), ty = clamp(hy + R + 20, 170, Hh - 130);
+      let tx = clamp(hx, 52, W - 52), ty = clamp(hy + R + 20, 170, Hh - 130);
+      // yazı düğmelerin altında kalmasın: halkanın üstüne ya da (yatay ekranda) sola
+      if (tx + 46 > cb.l && ty + 4 > cb.t) { const up = Math.min(cb.t - 6, hy - R - 12); if (up >= 170) ty = up; else tx = cb.l - 48; }
       ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText('GÖZLERİ VUR', tx + 1, ty + 1);
       ctx.fillStyle = '#ffd27a'; ctx.fillText('GÖZLERİ VUR', tx, ty);
     }
   }
   // ekran dışı gösterge
   const sx = H.x + ox, sy = H.y + oy, m = 26, top = 160, bot = Hh - 120;
-  if (sx < -70 || sx > W + 70 || sy < top - 90 || sy > bot + 110) {
+  // hücumda kafa ekranda değilse ok hep görünür (halka ile ok arasında boşluk kalmasın)
+  const hotOff = (st === 'windup' || st === 'ram') && !onScr(hx, hy, 0);
+  if (hotOff || sx < -70 || sx > W + 70 || sy < top - 90 || sy > bot + 110) {
     const cx = W/2, cy = (top + bot)/2, a = Math.atan2(sy - cy, sx - cx);
     const kx = Math.abs(Math.cos(a)) > 1e-3 ? (W/2 - m)/Math.abs(Math.cos(a)) : 1e9, ky = Math.abs(Math.sin(a)) > 1e-3 ? ((bot - top)/2)/Math.abs(Math.sin(a)) : 1e9;
-    const k = Math.min(kx, ky), px = cx + Math.cos(a)*k, py = cy + Math.sin(a)*k;
+    const k = Math.min(kx, ky); let px = cx + Math.cos(a)*k, py = cy + Math.sin(a)*k;
+    // sağ alttaki kontrol kümesinin altına düşmesin: dikey ekranda üstüne, yer yoksa (yatay) soluna
+    if (px > cb.l && py > cb.t) { if (cb.t >= top) py = cb.t; else px = cb.l; }
     const hot = st === 'windup' || st === 'ram' || st === 'dive', pulse = hot ? 0.6 + 0.4*Math.sin(T*14) : 0.85;
     ctx.translate(px, py); ctx.rotate(a);
     ctx.fillStyle = 'rgba(255,90,70,' + pulse.toFixed(3) + ')';
@@ -1424,9 +1446,12 @@ function lights(){
   return LT;
 }
 
+const FOC = {x:0, y:0};
 DG.boss = {
   start, update, draw, drawGlow, lights, reset, boatTint,
   active(){ return on; },
+  // çekirdek kamerası hücum hazırlığında bu noktaya (kafaya) doğru kayar; diğer zamanlar null
+  focus(){ if (!on || st !== 'windup') return null; FOC.x = wx(60, -10); FOC.y = wy(60, -10); return FOC; },
   targets(){ return on && fightable() ? TG.slice() : EMPTY; },
   info(){ return {st, phase, hp:Math.round(hp), maxHp:MAX_HP, boat:Math.round(boatHp*10)/10, t:Math.round(fightT*10)/10, vis, away, on, x:Math.round(H.x), y:Math.round(H.y), a:+H.a.toFixed(2), grab:!!grabTent, siege:siegeOn, side:siegeSide, stag:+(stagAcc/stagNeed).toFixed(2), dk:JSON.stringify(DK, (k, v) => typeof v === 'number' ? Math.round(v) : v), eyeO:+eyeO.toFixed(2), tents:TN.map(t => t.st).join(',')}; },
 };

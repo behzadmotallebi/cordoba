@@ -60,10 +60,13 @@ Tipler: jelly eel shark angler viper squid serpent guardian mimic octopus.
   `DG.U.isSafe(x,y)` bölgesine girmesin. `DG.wpn.flares` (dizi {x,y,t}) yakınında kaç. `DG.wpn.camoActive()` iken dalgıcı görmesin.
   Duvar ve raflardan geçmesin (`boundsAt`, `inLedge`). Sadece `DG.S.playing` iken saldırsın.
 - `damage(m, miktar, {stun, kx, ky, kind})` silahlar çağırır: can düşür, beyaz parlama, sersemletme, geri itme; ölürse `m.dead = true` ve `DG.core.bounty(m)`, efekt.
+  Sersemletme: ağ, sonik, patlama, torpido, şok ve `kind` vermeyen çağrılar her zaman tam sersemletir. `kind: 'dart'` (zıpkın, tüfek) ve `'beam'` (üç dişli)
+  sersemletmesi `m.sAcc`'ta birikir; eşik aşılınca canavar 1,1 sn bu ikisine bağışık olur (`m.sImm`). Böylece tek hedefli seri ateş canavarı sürekli kilitleyemez.
 - `radius(m)` isabet yarıçapı.
 - `spawnAt(tip, x, y, L, {size, hunt, ignoreSafe, keeper, hpMul, vx, vy})` canavar yaratıp `DG.S.mons`'a ekler ve döndürür (final çağırır).
   `hunt` hemen kovalatır; `DG.boss.active()` iken `hunt` ve `ignoreSafe` varsayılan olarak açıktır.
 - `m.hidden` / `isHidden(m)`: kılık değiştirmiş taklitçi ya da ahtapot (silahlar otomatik nişanda atlar, sonar gösterir). `reveal(m)` açığa çıkarır.
+- `lurking(m)` → bool: deliğine çekilmiş ve dalgıca uzanamayan murena. Otomatik nişan, torpido ve patlayıcı mızrak onu atlar; ona doğru giden mermi yine vurur.
 - `draw(ctx, m)` ışıkla görünen gövde (karanlık katmandan önce çizilir, karanlıkta kaybolur).
 - `drawGlow(ctx, m, darkAlpha)` karanlığın üstüne çizilenler: parlayan gözler, fener balığı ışığı, denizanası ışıltısı, sonar ile açığa çıkan taklitçiler.
 - `lights()` → [{x, y, r, k}] karanlıkta delik açan ışıklar (dünya koordinatı).
@@ -96,6 +99,8 @@ Dövüş yüzeyde, teknenin çevresinde (y ≈ 0..900). Karanlık kapalıdır (`
 - `targets()` → silahların vurabileceği parçalar [{x, y, r, hit(miktar, opts)}] (zayıf noktalar daha çok hasar alır).
   `weak:true` otomatik nişanda önceliklidir. `ownNums:true` olan parçanın hasar sayısını silah modülü yazmaz; final, çarpanı
   uygulanmış gerçek hasarı kendisi yazar (alan silahları karede tek parçaya sayıldığı için). Sersemletme parçaya en çok 1,2 sn gelir.
+- `focus()` → {x, y} ya da null: sadece hücum hazırlığında (windup) kafanın konumu. Çekirdek kamerayı oraya doğru kaydırır ki gözler ekranda kalsın.
+  Her karede aynı nesne döner (ayırma yok).
 - `info()` test ve hata ayıklama için anlık durum.
 - Her karede `DG.core.bossHUD(canOranı, gemiOranı, 'Derinlerin Efendisi')`. Kazanınca `DG.core.bossWon()`, gemi canı 0 olunca `DG.core.bossLost()`.
 - Dalgıca saldırı: `DG.core.hurt(...)`. Gemiye saldırı: kendi gemi canını düşür, `DG.fx.shake`, ses.

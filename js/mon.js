@@ -197,7 +197,7 @@ function make(t, L, x, y, o){
   const hp = M.hp*(1 + 0.35*L)*(size > 1 ? 1.6 : 1)*(o.hpMul || 1);
   const m = {t, L, x, y, vx:0, vy:0, hp, maxHp:hp, size, dead:false,
     sc:size*(1 + 0.03*L)*(VIS[t] || 1), sav, seed:Math.random(), hx:x, hy:y, ph:rnd(0, TAU), iph:rnd(0, 6.28),
-    s:'idle', st:0, cd:0, stun:0, flash:0, sq:0, hitT:0, mem:0, kx:0, ky:0, lost:0,
+    s:'idle', st:0, cd:0, stun:0, sImm:0, sAcc:0, flash:0, sq:0, hitT:0, mem:0, kx:0, ky:0, lost:0,
     face:Math.random() < 0.5 ? -1 : 1, tilt:0, ang:Math.random() < 0.5 ? 0 : Math.PI, fy:1, jaw:0,
     ox:x, oy:y, fa:1, fb:0, fc:0, fd:1, hidden:false, rv:1, pmx:null, pmy:null,
     keeper:!!o.keeper, ignoreSafe:!!o.ignoreSafe, force:!!o.hunt, dx:0, dy:0, dd:1e9, nT:3 + Math.round(sav*5)};
@@ -469,10 +469,17 @@ function aiJelly(m, dt){
   m.ox = m.x; m.oy = m.y;
 }
 
+// Deliğine çekilmiş ve dalgıca uzanamayan yılan balığı zararsızdır (silahların otomatik nişanı ona mermi harcamaz).
+const eelReach = m => (150 + 9*m.L)*Math.min(1.6, m.sc);
+function lurking(m){
+  if (!m || m.t !== 'eel' || m.dead || (m.s !== 'idle' && m.s !== 'back') || !(m.ext < 32)) return false;
+  const D = DG.S.diver, ox = (D.x - m.hx)*m.dir, oy = D.y - m.hy;
+  return !(ox > -36 && ox < eelReach(m) + 40 && Math.abs(oy) < 100 + 20*m.sc);
+}
 function aiEel(m, dt){
   const D = DG.S.diver, dir = m.dir, ox = (D.x - m.hx)*dir, oy = D.y - m.hy;
   m.dx = D.x - m.x; m.dy = D.y - m.y; m.dd = Math.hypot(m.dx, m.dy) || 1;
-  const reach = (150 + 9*m.L)*Math.min(1.6, m.sc), fl = nearFlare(m);
+  const reach = eelReach(m), fl = nearFlare(m);
   m.st -= dt;
   let ext = 14 + Math.sin(m.ph*0.8 + m.seed*9)*4, aim = Math.sin(m.ph*0.6)*0.15, jaw = 0.2 + 0.16*Math.sin(m.ph*2.4), k = 3;
   switch (m.s) {
@@ -1569,6 +1576,8 @@ DG.mon = {
     fr();
     m.ph += dt;
     if (m.cd > 0) m.cd -= dt;
+    // sersemlik direnci: tek hedefli silahların üst üste sersemletmesi birikir, eşiği aşınca kısa bir bağışıklık başlar
+    if (m.sImm > 0) m.sImm -= dt; else if (m.sAcc > 0) m.sAcc = Math.max(0, m.sAcc - dt*0.4);
     if (m.flash > 0) m.flash -= dt;
     if (m.sq > 0) m.sq = Math.max(0, m.sq - dt*7);
     if (m.hitT > 0) m.hitT -= dt;
@@ -1598,6 +1607,7 @@ DG.mon = {
     return MON[m.t].r*m.sc;
   },
   isHidden(m){ return !!m.hidden; },
+  lurking,
   reveal,
   damage(m, amt, o){
     if (!m || m.dead) return;
@@ -1607,7 +1617,13 @@ DG.mon = {
     m.hp -= amt; m.flash = 0.13; m.sq = 1; m.hitT = 2.4; m.mem = Math.max(m.mem, 5);
     if (m.hidden) reveal(m);
     const stun = o.stun != null ? o.stun : (o.kind === 'beam' ? 0 : 0.15);
-    if (stun > m.stun) m.stun = stun;
+    // Ağ, sonik, patlama, torpido ve kalkan her zaman tam sersemletir; zıpkın/tüfek ve ışın birikir ve bağışıklığa takılır.
+    // Yoksa ateş altındaki canavar hiç ısıramıyordu.
+    const cc = o.kind !== 'dart' && o.kind !== 'beam';
+    if (stun > m.stun && (cc || !(m.sImm > 0))) {
+      if (!cc) { m.sAcc = (m.sAcc || 0) + stun; if (m.sAcc > 1.2 - 0.6*m.sav) { m.sImm = 1.1; m.sAcc = 0; } }
+      m.stun = stun;
+    }
     let kx = o.kx, ky = o.ky;
     if (kx == null && ky == null) { const dx = m.x - D.x, dy = m.y - D.y, l = Math.hypot(dx, dy) || 1; kx = dx/l*140; ky = dy/l*140; if (o.kind === 'beam') { kx *= 0.05; ky *= 0.05; } }
     else { kx = kx || 0; ky = ky || 0; const l = Math.hypot(kx, ky); if (l > 0 && l < 3) { kx *= 220; ky *= 220; } }
