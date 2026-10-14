@@ -550,6 +550,17 @@ function setCtrl(n){
 }
 $('ctrlBtn').addEventListener('click', e => { e.currentTarget.blur(); setCtrl(save.ctrl === 2 ? 1 : 2); msg(save.ctrl === 2 ? 'İki parmak: sol yarı yüz, sağ yarı nişan al ve ateş et.' : 'Tek parmak: her yerden yüz, ATEŞ düğmesiyle ateş et.', 'var(--relic)'); });
 $('ctrlIntro').addEventListener('click', () => setCtrl(save.ctrl === 2 ? 1 : 2));
+// Sağ panel açılır-kapanır (telefonda kapalı başlar); seçim bu tarayıcıda hatırlanır.
+const HUD_MIN = 'dalgic3.hudMin';
+let hudMin = lsGet(HUD_MIN); hudMin = hudMin == null ? innerWidth < 600 : hudMin === '1';
+function setHudMin(v){
+  hudMin = v; document.querySelector('#hud .cash').classList.toggle('min', v);
+  $('cashTog').setAttribute('aria-expanded', String(!v));
+  hudBottom = $('hud').getBoundingClientRect().bottom;
+  if (!$('sig').hidden) placeSig();
+}
+$('cashTog').addEventListener('click', e => { e.currentTarget.blur(); setHudMin(!hudMin); lsSet(HUD_MIN, hudMin ? '1' : '0'); });
+setHudMin(hudMin);
 addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!$('teaser').hidden) { closeTeaser(); return; }

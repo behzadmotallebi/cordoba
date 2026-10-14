@@ -215,6 +215,13 @@ body.boss #msg{top:calc(env(safe-area-inset-top,0px) + 104px)}
 .rel .relIcon{width:46px;height:46px;object-fit:contain;justify-self:start;margin-bottom:2px}
 
 
+/* sağ panel açılır-kapanır: kapalıyken sadece kat ve para */
+.ctog{pointer-events:auto;display:flex;align-items:center;justify-content:flex-end;gap:6px;max-width:100%;min-height:30px;margin:-6px -4px -2px 0;padding:0 4px;border:0;background:none;color:var(--acc-hi);cursor:pointer}
+.ctog svg{width:16px;height:16px;flex:none;transition:transform .2s}
+.ctog #hStage{max-width:none;overflow:visible}
+.cash.min .ctog svg{transform:rotate(0)}
+.cash:not(.min) .ctog svg{transform:rotate(180deg)}
+.cash.min #hName,.cash.min #hRoster,.cash.min #hGoal,.cash.min #hBestBox,.cash.min #hCarry,.cash.min .opts{display:none!important}
 /* ---- kat canavar sayacı (HUD) ---- */
 #hRoster{font-size:10px;letter-spacing:.12em;font-weight:700;color:#ff9a8a;white-space:nowrap;text-align:right}
 #hRoster.clr{color:var(--ok)}
@@ -551,7 +558,7 @@ body.boss #sig{display:none}
   </div>
   <div class="cash panel">
     <span id="hName" hidden></span>
-    <span id="hStage">KAT 1/11 · SIĞ KOY</span>
+    <button class="ctog" id="cashTog" type="button" aria-expanded="true" aria-label="Paneli aç/kapat"><span id="hStage">KAT 1/11 · SIĞ KOY</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     <span id="hRoster" hidden>CANAVAR 0/0</span>
     <span id="hMoney">₺0</span>
     <span class="goal" id="hGoal" hidden><span id="hGoalTxt"></span><span class="gbar"><i id="hGoalFill"></i></span></span>
