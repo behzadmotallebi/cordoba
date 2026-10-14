@@ -60,7 +60,7 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 .cash{padding:9px 12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;pointer-events:auto;min-width:0;max-width:48vw}
 #hMoney{font-size:20px;color:var(--brass-hi);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 #hStage{color:var(--foam);font-size:10px;letter-spacing:.08em;font-weight:700;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.mute{margin-top:4px;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
+.mute{margin-top:4px;min-height:28px;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
 .bagfull{color:var(--amber)}
 .relicOn{color:var(--relic)}
 
@@ -188,6 +188,7 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
     <span id="hMoney">₺0</span>
     <span class="lbl">REKOR <span id="hBest" class="val">0</span> m</span>
     <button class="mute" id="muteBtn" type="button">SES AÇIK</button>
+    <button class="mute" id="ctrlBtn" type="button">KONTROL: 1 PARMAK</button>
   </div>
 </div>
 
@@ -240,7 +241,8 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
     <p>Tek bir deniz, 11 kat. Dal, hazine topla, canavarlarla savaş. Ekipmanını tamamla, asansörü bir kat daha aşağı indir.</p>
     <p class="lore">En dipte Atlantis var. Ve onu bekleyen bir şey.</p>
     <button class="go" id="startBtn" type="button">Dalışa başla</button>
-    <p class="small">Telefonda: ekranın herhangi bir yerine dokun ve sürükle. Sağ altta ATEŞ, silah ve yetenekler.<br>Bilgisayarda: WASD ya da oklar, Boşluk ateş, Shift hız, Q silah, 1-2-3 yetenek, E asansör, B dükkân.</p>
+    <p class="small">Telefonda: ekranın herhangi bir yerine dokun ve sürükle. Sağ altta ATEŞ, silah ve yetenekler. İki parmak modunda sol yarı yüzer, sağ yarı nişan alıp ateş eder.<br>Bilgisayarda: WASD ya da oklar, Boşluk ateş, Shift hız, Q silah, 1-2-3 yetenek, E asansör, B dükkân.</p>
+    <button class="demo" id="ctrlIntro" type="button" aria-pressed="false">KONTROL: 1 PARMAK</button>
     <button class="demo" id="demoBtn" type="button" aria-pressed="true">DEMO AÇIK · sınırsız para</button>
   </div>
 </div>

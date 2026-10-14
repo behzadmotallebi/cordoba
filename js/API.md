@@ -19,7 +19,7 @@ Kütüphane yok, dış dosya yok, sadece Canvas 2D. Hedef: orta seviye telefonda
 
 `save` (kalıcı kayıt), `diver` {x, y, vx, vy, ang, flip, inv}, `cam` {x, y}, `W`, `H`, `t` (saniye), `dt`,
 `items` (hazineler), `mons` (canavarlar dizisi), `playing` (oyun akıyor mu), `lifting` (balonla çıkış),
-`input.fire` (ateş basılı mı), `darkAlpha` (0..1, karanlık), `o2` (kalan hava, sn), `glowSpots`.
+`input.fire` (ateş basılı mı), `input.aim` ({x, y} birim vektör ya da null: iki parmak modunda sağ başparmağın nişan yönü; doluysa silahlar otomatik nişan yerine bu yöne ateş eder, ±12° içindeki hedefe hafif nişan yardımı serbest), `darkAlpha` (0..1, karanlık), `o2` (kalan hava, sn), `glowSpots`.
 `save.tier` = açılmış en derin kat (0..10). `save.wpn` = {silahId: seviye 0..3} (yoksa kilitli), `save.curWpn`,
 `save.skills` = {yetenekId: seviye 0..2}, `save.equip` = takılı 3 yetenek id'si (dash her zaman ayrı).
 

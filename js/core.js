@@ -59,7 +59,7 @@ const stationPos = s => s === 0 ? {x:BOAT_X, y:0} : {x:BOAT_X, y:LTOP[s]};
 function defaultSave(){
   return {v:3, money:0, tier:0, lv:{tank:0,speed:0,bag:0,light:0,suit:0,armor:0},
     wpn:{spear:0}, curWpn:'spear', skills:{dash:0}, equip:[], inv:{spareTank:0,spareBag:0},
-    relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}};
+    relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}, ctrl:1};
 }
 const save = defaultSave();
 const diver = {x:BOAT_X, y:0, vx:0, vy:0, ang:0, flip:1, kick:0, inv:0};
@@ -102,6 +102,7 @@ function mergeSave(s){
   save.tier = clamp(save.tier|0, 0, NL - 1);
   save.station = clamp(save.station|0, 0, save.tier);
   for (const k of TRACKS) save.lv[k] = clamp(save.lv[k]|0, 0, 3);
+  save.ctrl = save.ctrl === 2 ? 2 : 1;
   if (!WEAPONS.some(w => w.id === save.curWpn && save.wpn[w.id] != null)) save.curWpn = 'spear';
 }
 function load(){
@@ -329,16 +330,41 @@ DG.core = {hurt, dmgFor, bounty, reward, startLift, ink, slow, msg, float, sfx, 
 DG.sfx = sfx;
 
 // ---------- giriş: joystick + klavye ----------
+// Tek parmak: ekranın her yeri yüzme çubuğu. İki parmak: sol yarı yüzme, sağ yarı nişan + sürekli ateş.
 const joy = {active:false, id:null, ox:0, oy:0, x:0, y:0};
+const aim = {active:false, id:null, ox:0, oy:0, x:0, y:0};
+function setAim(){
+  if (!aim.active) { S.input.aim = null; return; }
+  const dx = aim.x - aim.ox, dy = aim.y - aim.oy, L = Math.hypot(dx, dy);
+  S.input.aim = L > 12 ? {x:dx/L, y:dy/L} : null;
+}
 cv.addEventListener('pointerdown', e => {
-  if (joy.active) return;
-  joy.active = true; joy.id = e.pointerId; joy.ox = joy.x = e.clientX; joy.oy = joy.y = e.clientY;
+  const twin = save.ctrl === 2 && S.playing;
+  const st = twin && e.clientX > S.W/2 ? aim : joy;
+  if (st.active) return;
+  st.active = true; st.id = e.pointerId; st.ox = st.x = e.clientX; st.oy = st.y = e.clientY;
+  if (st === aim) { S.input.fire = true; setAim(); }
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
 });
-cv.addEventListener('pointermove', e => { if (joy.active && e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; } });
-const joyEnd = e => { if (joy.active && e.pointerId === joy.id) joy.active = false; };
-cv.addEventListener('pointerup', joyEnd); cv.addEventListener('pointercancel', joyEnd);
-addEventListener('blur', () => { keys.clear(); joy.active = false; S.input.fire = false; });
+cv.addEventListener('pointermove', e => {
+  if (joy.active && e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; }
+  if (aim.active && e.pointerId === aim.id) { aim.x = e.clientX; aim.y = e.clientY; setAim(); }
+});
+const stickEnd = e => {
+  if (joy.active && e.pointerId === joy.id) joy.active = false;
+  if (aim.active && e.pointerId === aim.id) { aim.active = false; S.input.fire = false; setAim(); }
+};
+cv.addEventListener('pointerup', stickEnd); cv.addEventListener('pointercancel', stickEnd);
+addEventListener('blur', () => { keys.clear(); joy.active = false; aim.active = false; S.input.fire = false; S.input.aim = null; });
+function setCtrl(n){
+  save.ctrl = n; persist();
+  aim.active = false; S.input.aim = null; S.input.fire = false;
+  const t = n === 2 ? 'KONTROL: 2 PARMAK' : 'KONTROL: 1 PARMAK';
+  $('ctrlBtn').textContent = t; $('ctrlIntro').textContent = t;
+  $('ctrlIntro').setAttribute('aria-pressed', String(n === 2));
+}
+$('ctrlBtn').addEventListener('click', () => { setCtrl(save.ctrl === 2 ? 1 : 2); msg(save.ctrl === 2 ? 'İki parmak: sol yarı yüz, sağ yarı nişan al ve ateş et.' : 'Tek parmak: her yerden yüz, ATEŞ düğmesiyle ateş et.', 'var(--relic)'); });
+$('ctrlIntro').addEventListener('click', () => setCtrl(save.ctrl === 2 ? 1 : 2));
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (e.target && e.target.tagName === 'BUTTON' && (k === ' ' || k === 'enter')) return;
@@ -790,6 +816,7 @@ function updateControls(){
   const show = S.playing && diver.y > 30;
   $('controls').hidden = !show;
   if (!show) return;
+  fireBtn.hidden = save.ctrl === 2;
   const w = WEAPONS.find(x => x.id === save.curWpn) || WEAPONS[0];
   $('wpnName').textContent = w.n.split(' ')[0].toLocaleUpperCase('tr-TR');
   const fi = DG.wpn && DG.wpn.fireInfo ? DG.wpn.fireInfo() : {frac:0};
@@ -1127,7 +1154,21 @@ function drawPointers(){
   }
 }
 function drawJoystick(){
-  if (!joy.active || !S.playing) return;
+  if (!S.playing) return;
+  if (aim.active) {
+    const dx = aim.x - aim.ox, dy = aim.y - aim.oy, L = Math.hypot(dx, dy), k = L > 60 ? 60/L : 1;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,90,78,.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(aim.ox, aim.oy, 60, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,90,78,.08)'; ctx.fill();
+    ctx.fillStyle = 'rgba(255,90,78,.8)'; ctx.beginPath(); ctx.arc(aim.ox + dx*k, aim.oy + dy*k, 22, 0, 7); ctx.fill();
+    if (S.input.aim) {
+      const px = diver.x - cam.x, py = diver.y - cam.y;
+      ctx.setLineDash([4, 8]); ctx.strokeStyle = 'rgba(255,120,100,.55)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(px + S.input.aim.x*26, py + S.input.aim.y*26); ctx.lineTo(px + S.input.aim.x*220, py + S.input.aim.y*220); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+  if (!joy.active) return;
   const dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy), k = L > 60 ? 60/L : 1;
   ctx.save();
   ctx.strokeStyle = 'rgba(230,244,247,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 60, 0, 7); ctx.stroke();
@@ -1196,6 +1237,7 @@ function setup(){
   generate(); S.o2 = gTank();
   cam.y = diver.y - S.H*0.45; lastLayer = layerOf(diver.y);
   $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK';
+  setCtrl(save.ctrl === 2 ? 2 : 1);
   if (DG.boss && DG.boss.reset) DG.boss.reset();
 }
 let last = performance.now();
