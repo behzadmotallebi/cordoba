@@ -507,6 +507,8 @@ DG.sfx = sfx;
 // ---------- giriş: joystick + klavye ----------
 // Tek parmak: ekranın her yeri yüzme çubuğu. İki parmak: sol yarı yüzme, sağ yarı nişan + sürekli ateş.
 const joy = {active:false, id:null, ox:0, oy:0, x:0, y:0};
+// Çubuk yarıçapı: telefonda daha küçük halka (ekranı daha az kapatsın).
+const JR = () => S.W < 600 ? 46 : 60;
 const aim = {active:false, id:null, ox:0, oy:0, x:0, y:0};
 function setAim(){
   if (!aim.active) { S.input.aim = null; return; }
@@ -519,7 +521,7 @@ cv.addEventListener('pointerdown', e => {
   if (st.active) return;
   st.active = true; st.id = e.pointerId; st.x = e.clientX; st.y = e.clientY;
   // Yüzme çubuğunun merkezi kenarlardan 60 px içeride: kenara yakın dokununca da her yöne tam hız alınır.
-  st.ox = st === joy ? clamp(st.x, 60, S.W - 60) : st.x; st.oy = st === joy ? clamp(st.y, 60, S.H - 60) : st.y;
+  const r = JR(); st.ox = st === joy ? clamp(st.x, r, S.W - r) : st.x; st.oy = st === joy ? clamp(st.y, r, S.H - r) : st.y;
   if (st === aim) { S.input.fire = true; setAim(); }
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
 });
@@ -528,7 +530,7 @@ cv.addEventListener('pointermove', e => {
     joy.x = e.clientX; joy.y = e.clientY;
     // Tasmalı merkez: taban başparmağı izler, yön değiştirince dalgıç hemen döner.
     const dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy);
-    if (L > 60) { joy.ox = joy.x - dx/L*60; joy.oy = joy.y - dy/L*60; }
+    const r = JR(); if (L > r) { joy.ox = joy.x - dx/L*r; joy.oy = joy.y - dy/L*r; }
   }
   if (aim.active && e.pointerId === aim.id) { aim.x = e.clientX; aim.y = e.clientY; setAim(); }
 });
@@ -588,7 +590,7 @@ function moveInput(){
   if (keys.has('arrowdown') || keys.has('s')) ay += 1;
   if (joy.active) {
     const dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy);
-    if (L > 8) { const k = Math.min(1, (L - 8)/52); ax += dx/L*k; ay += dy/L*k; }
+    if (L > 8) { const k = Math.min(1, (L - 8)/(JR() - 8)); ax += dx/L*k; ay += dy/L*k; }
   }
   const al = Math.hypot(ax, ay); if (al > 1) { ax /= al; ay /= al; }
   return [ax, ay];
@@ -1977,11 +1979,11 @@ function drawPointers(){
 function drawJoystick(){
   if (!S.playing) return;
   if (aim.active) {
-    const dx = aim.x - aim.ox, dy = aim.y - aim.oy, L = Math.hypot(dx, dy), k = L > 60 ? 60/L : 1;
+    const R = JR(), dx = aim.x - aim.ox, dy = aim.y - aim.oy, L = Math.hypot(dx, dy), k = L > R ? R/L : 1;
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,90,78,.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(aim.ox, aim.oy, 60, 0, 7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,90,78,.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(aim.ox, aim.oy, R, 0, 7); ctx.stroke();
     ctx.fillStyle = 'rgba(255,90,78,.08)'; ctx.fill();
-    ctx.fillStyle = 'rgba(255,90,78,.8)'; ctx.beginPath(); ctx.arc(aim.ox + dx*k, aim.oy + dy*k, 22, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,90,78,.6)'; ctx.beginPath(); ctx.arc(aim.ox + dx*k, aim.oy + dy*k, R*0.33, 0, 7); ctx.fill();
     if (S.input.aim) {
       const px = diver.x - cam.x, py = diver.y - cam.y;
       ctx.setLineDash([4, 8]); ctx.strokeStyle = 'rgba(255,120,100,.55)'; ctx.lineWidth = 1.5;
@@ -1990,11 +1992,11 @@ function drawJoystick(){
     ctx.restore();
   }
   if (!joy.active) return;
-  const dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy), k = L > 60 ? 60/L : 1;
+  const R = JR(), dx = joy.x - joy.ox, dy = joy.y - joy.oy, L = Math.hypot(dx, dy), k = L > R ? R/L : 1;
   ctx.save();
-  ctx.strokeStyle = 'rgba(230,244,247,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 60, 0, 7); ctx.stroke();
-  ctx.fillStyle = 'rgba(230,244,247,.08)'; ctx.fill();
-  ctx.fillStyle = 'rgba(255,176,58,.75)'; ctx.beginPath(); ctx.arc(joy.ox + dx*k, joy.oy + dy*k, 22, 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(230,244,247,.22)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(joy.ox, joy.oy, R, 0, 7); ctx.stroke();
+  ctx.fillStyle = 'rgba(230,244,247,.05)'; ctx.fill();
+  ctx.fillStyle = 'rgba(255,176,58,.5)'; ctx.beginPath(); ctx.arc(joy.ox + dx*k, joy.oy + dy*k, R*0.33, 0, 7); ctx.fill();
   ctx.restore();
 }
 function drawVignette(){

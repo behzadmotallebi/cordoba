@@ -541,6 +541,22 @@ body.boss #sig{display:none}
 #tzNext{position:absolute;z-index:2;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 30px);animation:tzFade .5s ease both}
 #tzNext:active{transform:translateX(-50%) translateY(2px)}
 
+/* ---- telefon: kontroller ve dalış paneli ekranı daha az kaplasın ---- */
+@media (max-width:600px){
+  #controls{transform:scale(.78);transform-origin:100% 100%;right:calc(env(safe-area-inset-right,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 8px)}
+  #controls button{opacity:.72;transition:opacity .15s}
+  #controls button:active,#controls button.active,#controls #btnFire{opacity:.9}
+  #wpnPick{bottom:calc(env(safe-area-inset-bottom,0px) + 182px)}
+  .dc{padding:7px 10px 8px;column-gap:12px;row-gap:5px}
+  .dc .lbl{font-size:9px;letter-spacing:.12em}
+  .read.big .val{font-size:21px}
+  .read .val{font-size:14px}
+  .read .unit{font-size:10px}
+  .air .bar{height:8px}
+  .air #hAir{font-size:14px}
+  .cash{padding:7px 10px}
+  #hMoney{font-size:16px}
+}
 @media (prefers-reduced-motion:reduce){
   .air.low .val,#warn,.cbtn.ready,.relicArt::before,.sigc,#sig.ping{animation:none}
   #teaser.title .tzTitle,#teaser.title .tzLore{animation:none;opacity:1}
