@@ -57,10 +57,19 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 .air.low .bar i{background:var(--danger)}
 .air.low .val{color:var(--danger);animation:blink .6s steps(2) infinite}
 @keyframes blink{50%{opacity:.35}}
-.cash{padding:9px 12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;pointer-events:auto;min-width:0;max-width:48vw}
+.cash{padding:9px 12px;display:flex;flex-direction:column;align-items:flex-end;gap:2px;pointer-events:none;min-width:0;max-width:48vw}
+.goal{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:10px;letter-spacing:.06em;color:var(--foam);font-weight:700;max-width:100%}
+#hGoalTxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.gbar{width:120px;max-width:100%;height:4px;border-radius:2px;background:var(--line-soft);overflow:hidden}
+.gbar i{display:block;height:100%;width:0;background:var(--amber);transition:width .4s}
+.goal.ok #hGoalTxt{color:var(--ok)}
+.goal.ok .gbar i{background:var(--ok)}
+#hCarryV{color:var(--amber)}
+.air .bar{position:relative}
+.air .bar b{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:#fff;opacity:.9;pointer-events:none}
 #hMoney{font-size:20px;color:var(--brass-hi);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 #hStage{color:var(--foam);font-size:10px;letter-spacing:.08em;font-weight:700;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.mute{margin-top:4px;min-height:28px;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
+.mute{margin-top:4px;min-height:28px;pointer-events:auto;background:transparent;border:1px solid var(--line-soft);color:var(--dim);border-radius:6px;font-size:10px;letter-spacing:.12em;padding:4px 8px}
 .bagfull{color:var(--amber)}
 .relicOn{color:var(--relic)}
 
@@ -102,6 +111,7 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 #btnSk2{right:84px;bottom:136px}
 
 /* sheets */
+#shop{min-height:min(70%,560px)}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;background:linear-gradient(180deg,#0a2238,var(--navy));border-top:2px solid var(--brass);border-radius:18px 18px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 16px);max-height:84%;overflow:auto;box-shadow:0 -12px 40px rgba(0,0,0,.55)}
 .sheethead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 auto 12px;max-width:640px}
 .sheethead h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:0;min-width:0;color:var(--brass-hi);letter-spacing:.02em}
@@ -164,7 +174,8 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
 #rideDepth{font-family:var(--f-display);font-size:clamp(44px,14vw,80px);color:var(--brass-hi);font-variant-numeric:tabular-nums}
 #rideTo{font-size:13px;letter-spacing:.2em;color:var(--dim)}
 @media (max-width:420px){
-  .dc{column-gap:10px;padding:8px 10px}
+  .dc{column-gap:10px;padding:8px 10px;flex:none}
+  .dc .read:nth-child(2){display:none}
   .read.big .val{font-size:22px}
   .read .val{font-size:15px}
   #hMoney{font-size:17px}
@@ -181,12 +192,14 @@ button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
     <div class="read big"><span class="lbl">DERİNLİK</span><span class="row"><span id="hDepth" class="val">0</span><span class="unit">m</span></span></div>
     <div class="read"><span class="lbl">BASINÇ</span><span class="row"><span id="hAtm" class="val">1,0</span><span class="unit">atm</span></span></div>
     <div class="read"><span class="lbl">ÇANTA</span><span class="row"><span id="hBag" class="val">0/5</span></span></div>
-    <div class="air" id="hAirBox"><span class="lbl">HAVA</span><div class="bar"><i id="hAirFill"></i></div><span id="hAir" class="val">200</span><span class="unit">bar</span></div>
+    <div class="air" id="hAirBox"><span class="lbl">HAVA</span><div class="bar"><i id="hAirFill"></i><b id="hAirRet" hidden></b></div><span id="hAir" class="val">0</span><span class="unit">sn</span></div>
   </div>
   <div class="cash panel">
     <span id="hStage">KAT 1/11 · SIĞ KOY</span>
     <span id="hMoney">₺0</span>
-    <span class="lbl">REKOR <span id="hBest" class="val">0</span> m</span>
+    <span class="goal" id="hGoal" hidden><span id="hGoalTxt"></span><span class="gbar"><i id="hGoalFill"></i></span></span>
+    <span class="lbl" id="hBestBox">REKOR <span id="hBest" class="val">0</span> m</span>
+    <span class="lbl" id="hCarry" hidden>ÇANTADA <span id="hCarryV" class="val">₺0</span></span>
     <button class="mute" id="muteBtn" type="button">SES AÇIK</button>
     <button class="mute" id="ctrlBtn" type="button">KONTROL: 1 PARMAK</button>
   </div>

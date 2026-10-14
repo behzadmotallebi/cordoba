@@ -122,8 +122,8 @@ const SKILLS = [
 ];
 
 const CONS = {
-  spareTank:{n:'Yedek tüp',   d:'Havan bitince kendiliğinden açılır, tüpü %60 doldurur.', price:0.8, max:2, pack:1},
-  spareBag: {n:'Yedek çanta', d:'Çantan dolunca açılır, o dalış için %50 daha fazla yer.', price:0.5, max:2, pack:1},
+  spareTank:{n:'Yedek tüp',   d:'Havan bitince kendiliğinden açılır, tüpü %60 doldurur.', price:3.0, max:2, pack:1},
+  spareBag: {n:'Yedek çanta', d:'Çantan dolunca açılır, o dalış için %50 daha fazla yer.', price:2.0, max:2, pack:1},
 };
 
 DG.data = {

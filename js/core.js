@@ -59,14 +59,14 @@ const stationPos = s => s === 0 ? {x:BOAT_X, y:0} : {x:BOAT_X, y:LTOP[s]};
 function defaultSave(){
   return {v:3, money:0, tier:0, lv:{tank:0,speed:0,bag:0,light:0,suit:0,armor:0},
     wpn:{spear:0}, curWpn:'spear', skills:{dash:0}, equip:[], inv:{spareTank:0,spareBag:0},
-    relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}, ctrl:1};
+    relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}, ctrl:1, ng:0};
 }
 const save = defaultSave();
 const diver = {x:BOAT_X, y:0, vx:0, vy:0, ang:0, flip:1, kick:0, inv:0};
 const cam = {x:0, y:0};
 const S = DG.S = {save, diver, cam, W:0, H:0, DPR:1, t:0, dt:0, items:[], mons:[], playing:false, lifting:false, riding:false,
   input:{fire:false, mx:0, my:0}, worldH:WORLD_H, darkAlpha:0, glowSpots:[], relicHeld:false, bag:[], o2:30, slowT:0, inkT:0};
-let mods = null, bagBonus = 0, diving = false, hurtT = 0, shakeT = 0, fullMsgT = 0, overT = 0, curStationZone = -1;
+let mods = null, bagBonus = 0, diving = false, hurtT = 0, shakeT = 0, fullMsgT = 0, overT = 0, curStationZone = -1, retWarned = false, shownMoney = 0;
 let floaters = [], bubbles = [], bubbleT = 0, lastLayer = -1, lastBestShown = 0;
 const keys = new Set();
 
@@ -80,6 +80,8 @@ function resize(){
   for (const c of [cv, dk]) { c.width = Math.round(S.W*S.DPR); c.height = Math.round(S.H*S.DPR); }
 }
 addEventListener('resize', resize);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+addEventListener('pagehide', () => persist());
 const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // ---------- kayıt ve demo ----------
@@ -103,6 +105,7 @@ function mergeSave(s){
   save.station = clamp(save.station|0, 0, save.tier);
   for (const k of TRACKS) save.lv[k] = clamp(save.lv[k]|0, 0, 3);
   save.ctrl = save.ctrl === 2 ? 2 : 1;
+  save.ng = Math.max(0, save.ng|0);
   if (!WEAPONS.some(w => w.id === save.curWpn && save.wpn[w.id] != null)) save.curWpn = 'spear';
 }
 function load(){
@@ -119,6 +122,8 @@ function relicMods(){
     else if (b.k === 'dmg') m.dmg *= (1 - b.v);
     else m[b.k] *= (1 + b.v);
   }
+  // Yeni Sefer+: her turda canavarlar %50 daha sert, hazineler %25 daha değerli.
+  m.dmg *= 1 + 0.5*save.ng; m.value *= 1 + 0.25*save.ng;
   return m;
 }
 const speedAt = (t, k) => 150*Math.pow(1.15, t)*KM.speed[k];
@@ -141,10 +146,11 @@ function gSpeed(){
   return s;
 }
 const valUnit = L => 3*Math.pow(3.5, L);
-const priceUnit = t => 15*Math.pow(3.5, t);
+const priceUnit = t => 15*Math.pow(3.5, t)*(1 + 0.25*t);
 function nice(n){ if (n < 100) return Math.max(1, Math.round(n)); const p = Math.pow(10, Math.floor(Math.log10(n)) - 1); return Math.round(n/p)*p; }
 const upCost = (k, lvl) => nice(priceUnit(save.tier)*TRACK_W[k]*STEP_COST[lvl]);
-const elevCost = () => nice(2600*Math.pow(3.5, save.tier));
+const elevCost = () => nice(2600*Math.pow(3.5, save.tier)*(1 + 0.25*save.tier));
+const ngCost = () => nice(2600*Math.pow(3.5, NL - 1)*(1 + 0.25*(NL - 1))*(1 + save.ng));
 const consPrice = k => nice(priceUnit(save.tier)*CONS[k].price);
 const wpnCost = (w, lvl) => nice(priceUnit(w.unlock)*D.WPN_COST[lvl]);
 const skillCost = (s, lvl) => nice(priceUnit(s.unlock)*D.SKILL_COST[lvl]);
@@ -152,7 +158,7 @@ const refTank = L => tankAt(L, 1);
 function fmtMoney(n){
   n = Math.round(n);
   if (n < 100000) return '₺' + n.toLocaleString('tr-TR');
-  for (const [d, s] of [[1e12,' Tr'],[1e9,' Mr'],[1e6,' Mn'],[1e3,' B']]) if (n >= d) { const v = n/d; return '₺' + (v >= 100 ? Math.round(v) : v.toFixed(1).replace('.', ',')) + s; }
+  for (const [d, s] of [[1e12,' Tr'],[1e9,' Mr'],[1e6,' Mn'],[1e3,' B']]) if (n >= d*0.9995) { const v = n/d; return '₺' + (v >= 99.95 ? Math.round(v) : v.toFixed(1).replace('.', ',')) + s; }
   return '₺' + n;
 }
 const fmtM = m => Math.round(m).toLocaleString('tr-TR') + ' m';
@@ -281,7 +287,7 @@ function hurt(sec, name, src){
   return dmg;
 }
 function bounty(m){
-  const reward = valUnit(m.L)*MON[m.t].bounty*mods.value*(m.size > 1 ? 2 : 1);
+  const reward = 0.5*valUnit(m.L)*MON[m.t].bounty*mods.value*(m.size > 1 ? 2 : 1);
   if (!demo) save.money += reward;
   save.earned += reward; save.kills++;
   float(m.x, m.y - 22, MON[m.t].n + ' +' + fmtMoney(reward), '#ffb03a');
@@ -363,7 +369,7 @@ function setCtrl(n){
   $('ctrlBtn').textContent = t; $('ctrlIntro').textContent = t;
   $('ctrlIntro').setAttribute('aria-pressed', String(n === 2));
 }
-$('ctrlBtn').addEventListener('click', () => { setCtrl(save.ctrl === 2 ? 1 : 2); msg(save.ctrl === 2 ? 'İki parmak: sol yarı yüz, sağ yarı nişan al ve ateş et.' : 'Tek parmak: her yerden yüz, ATEŞ düğmesiyle ateş et.', 'var(--relic)'); });
+$('ctrlBtn').addEventListener('click', e => { e.currentTarget.blur(); setCtrl(save.ctrl === 2 ? 1 : 2); msg(save.ctrl === 2 ? 'İki parmak: sol yarı yüz, sağ yarı nişan al ve ateş et.' : 'Tek parmak: her yerden yüz, ATEŞ düğmesiyle ateş et.', 'var(--relic)'); });
 $('ctrlIntro').addEventListener('click', () => setCtrl(save.ctrl === 2 ? 1 : 2));
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -547,8 +553,17 @@ function renderElev(){
   body.appendChild(list);
   const card = el('div', 'shipcard');
   if (save.tier >= NL - 1) {
-    card.appendChild(el('h3', null, 'Son kat'));
-    card.appendChild(el('p', null, save.bossDone ? 'Atlantis senin. Bütün katlar açık; dalmaya devam edebilirsin.' : 'Atlantis\'in Kalbi bu katın en dibinde. Onu bir istasyona getir.'));
+    if (save.bossDone) {
+      const c = ngCost();
+      card.appendChild(el('span', 'lbl', 'YENİ SEFER+ ' + (save.ng + 1)));
+      card.appendChild(el('h3', null, 'Denize yeniden aç'));
+      card.appendChild(el('p', null, 'Sığ Koy\'dan yeniden başlarsın. Silahların, yeteneklerin ve paran seninle kalır; katlar ve eserler sıfırlanır. Canavarlar %50 daha sert, hazineler %25 daha değerli.'));
+      const ul = el('ul', 'req'); const li = el('li', canAfford(c) ? 'ok' : ''); li.appendChild(el('span', null, 'Sefer bileti: ' + fmtMoney(c))); li.appendChild(el('b', null, canAfford(c) ? '✓' : '✗')); ul.appendChild(li); card.appendChild(ul);
+      card.appendChild(btn('Yeni Sefer+ başlat', 'bigbuy', canAfford(c), newGamePlus, 'ngPlus'));
+    } else {
+      card.appendChild(el('h3', null, 'Son kat'));
+      card.appendChild(el('p', null, save.relics.includes(NL - 1) ? 'Atlantis\'in Kalbi elinde. Tekneye çık ve canavarla savaş.' : 'Atlantis\'in Kalbi bu katın en dibinde. Onu bir istasyona getir.'));
+    }
   } else {
     const n = save.tier + 1, cost = elevCost();
     card.appendChild(el('span', 'lbl', 'YENİ KAT'));
@@ -573,6 +588,17 @@ function renderElev(){
     }, 'demoAll');
     body.appendChild(d);
   }
+}
+function newGamePlus(){
+  const c = ngCost();
+  if (!save.bossDone || !canAfford(c)) return;
+  spend(c);
+  save.ng++; save.tier = 0; save.relics = []; save.bossDone = false; save.endSeen = false; save.station = 0;
+  for (const k of TRACKS) save.lv[k] = 0;
+  $('elev').hidden = true;
+  setup(); persist();
+  sfx('elev'); buzz([40, 30, 80]);
+  toast('Yeni Sefer+ ' + save.ng, 'SIĞ KOY · DENİZ DAHA TEHLİKELİ');
 }
 function buildElevator(){
   if (!elevReady()) return;
@@ -615,7 +641,7 @@ function rideTo(s){
 function relicCard(L){
   const r = LAYERS[L].relic;
   $('rcName').textContent = r.n; $('rcLore').textContent = r.lore; $('rcBonus').textContent = bonusText(r.bonus);
-  $('rcNext').textContent = L === NL - 1 ? '' : gearDone() ? 'Ekipman da tamam. Asansörden yeni katı açabilirsin.' : 'Ekipmanı tamamlayınca asansörden yeni katı açabilirsin.';
+  $('rcNext').textContent = L === NL - 1 ? '' : !gearDone() ? 'Ekipmanı tamamlayınca asansörden yeni katı açabilirsin.' : canAfford(elevCost()) ? 'Ekipman da tamam. Asansörden yeni katı açabilirsin.' : 'Ekipman tamam. Asansör için ' + fmtMoney(elevCost()) + ' biriktir.';
   S.playing = false; $('relicCard').hidden = false;
   S.afterRelic = L === NL - 1 ? bossIntro : null;
 }
@@ -634,7 +660,7 @@ $('bcBtn').addEventListener('click', () => {
   if (curStationZone === 0) { S.playing = true; const f = S.onArrive; S.onArrive = null; f(); } else rideTo(0);
 });
 $('endBtn').addEventListener('click', () => { $('endCard').hidden = true; save.endSeen = true; persist(); S.playing = true; });
-$('muteBtn').addEventListener('click', () => { save.muted = !save.muted; $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK'; persist(); if (!save.muted) sfx('buy'); });
+$('muteBtn').addEventListener('click', e => { e.currentTarget.blur(); save.muted = !save.muted; $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK'; persist(); if (!save.muted) sfx('buy'); });
 function syncDemoBtn(){
   const b = $('demoBtn'); b.setAttribute('aria-pressed', String(demo));
   b.textContent = demo ? 'DEMO AÇIK · sınırsız para' : 'DEMO KAPALI · gerçek oyun';
@@ -667,9 +693,11 @@ function faint(){
   wakeAtStation(); S.o2 = gTank(); generate(); persist();
   msg(hadRelic ? 'Bayıldın! Eser de çanta da derinlere geri döndü.' : lost ? 'Bayıldın! Çantadaki ' + lost + ' parça denizde kaldı.' : 'Bayıldın! İstasyon seni çekti.', 'var(--danger)');
 }
-function stationZone(){
-  if (diver.y < 25 && Math.abs(diver.x - BOAT_X) < 120) return 0;
-  for (let s = 1; s <= save.tier; s++) if (dist(diver.x, diver.y, BOAT_X, LTOP[s]) < STATION_R) return s;
+const boatHalf = () => Math.max(120, SHIPS[save.tier].len*1.05 + 12);
+function stationZone(pad){
+  pad = pad || 0;
+  if (diver.y < 25 + pad && Math.abs(diver.x - BOAT_X) < boatHalf() + pad) return 0;
+  for (let s = 1; s <= save.tier; s++) if (dist(diver.x, diver.y, BOAT_X, LTOP[s]) < STATION_R + pad) return s;
   return -1;
 }
 function arriveAtStation(s){
@@ -691,6 +719,7 @@ function arriveAtStation(s){
   generate(); persist();
   hint('station', 'İstasyondasın: hava doldu, ganimet satıldı. Dükkân ve Asansör düğmeleri solda.');
 }
+function startDive(){ diving = true; save.dives++; retWarned = false; }
 function update(dt){
   S.t += dt; S.dt = dt;
   const [ax, ay] = S.playing && !S.lifting ? moveInput() : [0, 0];
@@ -739,7 +768,7 @@ function update(dt){
       $('warn').hidden = !over;
       S.o2 -= rate*dt;
     }
-    if (zone < 0 && !diving) { diving = true; save.dives++; }
+    if (!diving && stationZone(70) < 0) startDive();
     if (zone >= 0 && diving) arriveAtStation(zone);
     if (m > save.best) { if (save.best > 30 && m > lastBestShown + 50) { lastBestShown = m; float(diver.x, diver.y - 44, 'REKOR ' + fmtM(m), '#5ad8ff'); } save.best = m; }
     if (L !== lastLayer) { if (lastLayer >= 0) toast(LAYERS[L].name, 'KAT ' + (L + 1) + ' / ' + NL + ' · ' + fmtM(LAYERS[L].top)); lastLayer = L; }
@@ -753,16 +782,27 @@ function update(dt){
           float(it.x, it.y - 24, it.def.n + '!', it.def.c);
           msg(it.def.n + ' elinde! Bir istasyona götür.', 'var(--relic)');
         } else if (S.bag.length < gBag()) {
+          if (!diving) startDive();
           it.taken = true; S.bag.push(it); sfx('pick');
           float(it.x, it.y - 18, it.def.n + ' ' + fmtMoney(it.value), it.def.c);
-        } else if (save.inv.spareBag > 0) {
-          save.inv.spareBag--; const add = Math.ceil(bagAt(save.lv.bag)*0.5); bagBonus += add;
-          msg('Yedek çanta açıldı! +' + add + ' yer', 'var(--amber)');
-        } else if (S.t - fullMsgT > 2.5) { fullMsgT = S.t; msg('Çanta dolu! Satmak için bir istasyona dön.', 'var(--amber)'); }
+        } else {
+          // Çanta dolu: daha değerli bir parça en ucuzla yer değiştirir (ya da yedek çanta açılır).
+          let lo = 0;
+          for (let i = 1; i < S.bag.length; i++) if (S.bag[i].value < S.bag[lo].value) lo = i;
+          if (S.bag.length && it.value > S.bag[lo].value*1.15) {
+            if (save.inv.spareBag > 0) {
+              save.inv.spareBag--; const add = Math.ceil(bagAt(save.lv.bag)*0.5); bagBonus += add; persist();
+              msg('Yedek çanta açıldı! +' + add + ' yer', 'var(--amber)');
+            } else {
+              S.bag[lo] = it; it.taken = true; sfx('pick');
+              float(it.x, it.y - 18, 'Takas: ' + it.def.n + ' ' + fmtMoney(it.value), it.def.c);
+            }
+          } else if (S.t - fullMsgT > 2.5) { fullMsgT = S.t; msg('Çanta dolu! Daha değerli parçalar ucuzlarla yer değiştirir. Satmak için istasyona dön.', 'var(--amber)'); }
+        }
       }
     }
     if (S.o2 <= 0) {
-      if (save.inv.spareTank > 0 && zone < 0) { save.inv.spareTank--; S.o2 = maxO2*0.6; msg('Yedek tüpe geçildi! Hemen istasyona dön.', 'var(--amber)'); sfx('warn'); buzz(120); }
+      if (save.inv.spareTank > 0 && zone < 0) { save.inv.spareTank--; S.o2 = maxO2*0.6; persist(); msg('Yedek tüpe geçildi! Hemen istasyona dön.', 'var(--amber)'); sfx('warn'); buzz(120); }
       else faint();
     }
   }
@@ -796,16 +836,51 @@ function updateHUD(m, L, maxO2, zone){
   bagEl.classList.toggle('bagfull', S.bag.length >= gBag() && S.relicHeld === false);
   bagEl.classList.toggle('relicOn', S.relicHeld !== false);
   const frac = clamp(S.o2/maxO2, 0, 1);
-  $('hAir').textContent = Math.round(frac*200);
+  $('hAir').textContent = Math.max(0, Math.ceil(S.o2));
   $('hAirFill').style.width = (frac*100) + '%';
-  $('hAirBox').classList.toggle('low', frac < 0.25 && zone < 0);
-  $('hMoney').textContent = demo ? '₺∞ DEMO' : fmtMoney(save.money);
+  // Dönüş işareti: bir üstteki istasyona varmak için gereken hava (pay ile).
+  let rf = 0;
+  if (zone < 0) {
+    const st = stationPos(stationAbove(diver.y));
+    const secs = dist(diver.x, diver.y, st.x, st.y)/(speedAt(save.tier, save.lv.speed)*mods.speed);
+    const f = clamp((diver.y - LTOP[L])/LH(L), 0, 1);
+    rf = clamp(secs*(1 + f*(1 + 0.2*L))*1.25/maxO2, 0, 1);
+  }
+  const ret = $('hAirRet'); ret.hidden = zone >= 0 || rf < 0.02; ret.style.left = (rf*100) + '%';
+  const late = S.playing && zone < 0 && rf > 0.02 && frac < rf + 0.06;
+  if (late && !retWarned) { retWarned = true; msg('DÖN! Havan istasyona ancak yeter.', 'var(--danger)'); sfx('warn'); buzz(100); }
+  $('hAirBox').classList.toggle('low', zone < 0 && (frac < 0.25 || late));
+  if (save.money < shownMoney || Math.abs(save.money - shownMoney) < 1) shownMoney = save.money;
+  else shownMoney += (save.money - shownMoney)*Math.min(1, S.dt*5);
+  $('hMoney').textContent = demo ? '₺∞ DEMO' : fmtMoney(shownMoney);
+  const carry = S.bag.reduce((a, it) => a + it.value, 0);
+  $('hCarry').hidden = !S.bag.length; $('hBestBox').hidden = !!S.bag.length;
+  if (S.bag.length) $('hCarryV').textContent = fmtMoney(carry);
   $('hBest').textContent = Math.round(save.best).toLocaleString('tr-TR');
-  $('hStage').textContent = 'KAT ' + (L + 1) + '/' + NL + ' · ' + LAYERS[L].name.toLocaleUpperCase('tr-TR');
+  $('hStage').textContent = 'KAT ' + (L + 1) + '/' + NL + (S.W > 430 ? ' · ' + LAYERS[L].name.toLocaleUpperCase('tr-TR') : '') + (save.ng ? ' · S+' + save.ng : '');
   if ((S.t*4|0) !== ((S.t - S.dt)*4|0)) updateCtx();
   updateControls();
 }
+function nextGoal(){
+  if (save.bossDone) { const c = ngCost(); return {txt:'HEDEF: YENİ SEFER+ ' + fmtMoney(c), f:demo ? 1 : save.money/c}; }
+  if (!gearDone()) {
+    let best = null;
+    for (const k of TRACKS) { const lv = save.lv[k]; if (lv < 3) { const c = upCost(k, lv + 1); if (!best || c < best.c) best = {k, c}; } }
+    return {txt:'SIRADAKİ: ' + TRACK_LABEL[best.k] + ' ' + fmtMoney(best.c), f:demo ? 1 : save.money/best.c};
+  }
+  if (!relicDone()) return {txt:save.tier === NL - 1 ? 'HEDEF: ATLANTİS\'İN KALBİ' : 'HEDEF: KATIN ESERİ · ' + fmtM(LAYERS[save.tier].bot), f:clamp(save.best/LAYERS[save.tier].bot, 0, 1)};
+  if (save.tier < NL - 1) { const c = elevCost(); return {txt:'HEDEF: ASANSÖR ' + fmtMoney(c), f:demo ? 1 : save.money/c}; }
+  return {txt:'HEDEF: FİNAL CANAVARI', f:1};
+}
+function updateGoal(){
+  const g = nextGoal(), f = clamp(g.f, 0, 1);
+  $('hGoal').hidden = !S.playing;
+  $('hGoalTxt').textContent = g.txt;
+  $('hGoalFill').style.width = (f*100) + '%';
+  $('hGoal').classList.toggle('ok', f >= 1);
+}
 function updateCtx(){
+  updateGoal();
   const show = S.playing && curStationZone >= 0;
   $('ctx').hidden = !show;
   if (!show) { $('shop').hidden = true; $('elev').hidden = true; }
@@ -1248,7 +1323,7 @@ function frame(now){
 }
 function start(data){
   if (data && data.save && data.save.v === 3) mergeSave(data.save); else load();
-  resize(); setup(); syncDemoBtn();
+  resize(); setup(); syncDemoBtn(); shownMoney = save.money;
   if (data && data.playing) { $('intro').hidden = true; S.playing = true; }
   requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
 }
