@@ -114,7 +114,7 @@ function hit(o, amt, opts, numKind){
   const boss = isBoss(o);
   if (boss) { if (o.hit) o.hit(amt, opts && opts.stun > 1.2 ? Object.assign({}, opts, {stun:1.2}) : opts); }
   else if (DG.mon && DG.mon.damage) DG.mon.damage(o, amt, opts);
-  if (amt > 0) {
+  if (amt > 0 && !(boss && o.ownNums)) {
     let e = dmgAcc.get(o);
     if (!e) { e = {a:0, t:0, x:o.x, y:o.y, r:boss ? (o.r || 30) : monR(o), c:NUM_COL[numKind] || '#e6f4f7'}; dmgAcc.set(o, e); }
     e.a += amt; e.x = o.x; e.y = o.y;

@@ -898,6 +898,7 @@ function updateCtx(){
   const n = affordableCount(), b = $('shopBadge'); b.hidden = n === 0; b.textContent = n;
   $('elevBtn').classList.toggle('ready', elevReady());
 }
+const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', camo:'KAMUFLAJ'};
 function updateControls(){
   const show = S.playing && diver.y > 30;
   $('controls').hidden = !show;
@@ -913,7 +914,7 @@ function updateControls(){
     const b = $('btnSk' + i), id = save.equip[i];
     b.hidden = !id; if (!id) continue;
     const s = SKILLS.find(x => x.id === id), info = DG.wpn && DG.wpn.skillInfo ? DG.wpn.skillInfo(id) : {frac:0, active:false};
-    b.firstChild.textContent = s.n.split(' ')[0].toLocaleUpperCase('tr-TR');
+    b.firstChild.textContent = SK_SHORT[id] || s.n.split(' ')[0].toLocaleUpperCase('tr-TR');
     b.style.setProperty('--p', String(clamp(info.frac || 0, 0, 1)));
     b.classList.toggle('active', !!info.active);
   }
@@ -1009,15 +1010,69 @@ function drawDecor(){
     ctx.restore();
   }
 }
+// Asansör halatı: koyu çelik gövde, ince parlak kenar, aralıklı kelepçeler (kaydıkça derinlik hissi verir).
+function drawCable(x, y0, y1){
+  if (y1 <= y0) return;
+  ctx.strokeStyle = 'rgba(12,18,24,.8)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+  ctx.strokeStyle = 'rgba(190,206,216,.32)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x - 0.8, y0); ctx.lineTo(x - 0.8, y1); ctx.stroke();
+  for (let wy = Math.ceil((y0 + cam.y)/360)*360; wy - cam.y < y1; wy += 360) {
+    const sy = wy - cam.y;
+    ctx.fillStyle = '#4a545e'; ctx.fillRect(x - 4, sy - 3, 8, 6);
+    ctx.fillStyle = 'rgba(210,222,230,.35)'; ctx.fillRect(x - 4, sy - 3, 8, 1);
+  }
+}
+function drawStation(x, y, s){
+  const w = 50, top = y - 98, bot = y + 2;
+  // arka cam ve içeriden gelen sıcak ışık
+  const g = ctx.createLinearGradient(0, top, 0, bot);
+  g.addColorStop(0, 'rgba(255,190,105,.26)'); g.addColorStop(0.45, 'rgba(38,50,62,.6)'); g.addColorStop(1, 'rgba(14,22,30,.8)');
+  ctx.fillStyle = g; ctx.fillRect(x - w, top, w*2, bot - top);
+  ctx.strokeStyle = 'rgba(78,92,106,.75)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x - w, top + 8); ctx.lineTo(x + w, bot - 8); ctx.moveTo(x + w, top + 8); ctx.lineTo(x - w, bot - 8); ctx.stroke();
+  // hava tüpleri ve kontrol paneli
+  for (let k = 0; k < 2; k++) {
+    const tx = x - w + 8 + k*12;
+    ctx.fillStyle = '#e2ad2a'; rr(tx, bot - 36, 9, 32, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(tx + 1.5, bot - 32, 2, 24);
+    ctx.fillStyle = '#9aa6b2'; ctx.fillRect(tx + 3, bot - 40, 3, 5);
+  }
+  ctx.fillStyle = '#0c1813'; ctx.fillRect(x + w - 24, top + 26, 16, 20);
+  ctx.fillStyle = 'rgba(95,214,164,.85)';
+  for (let k = 0; k < 3; k++) ctx.fillRect(x + w - 22, top + 30 + k*5, 6 + ((S.t*3 + k*1.7 + s)%1)*6, 2);
+  // çerçeve: dikmeler, kirişler, güverte
+  ctx.fillStyle = '#28313b';
+  ctx.fillRect(x - w - 5, top - 4, 7, bot - top + 4); ctx.fillRect(x + w - 2, top - 4, 7, bot - top + 4);
+  ctx.fillRect(x - w - 8, top - 10, w*2 + 16, 8);
+  ctx.fillStyle = '#343e49'; ctx.fillRect(x - w - 12, bot - 2, w*2 + 24, 9);
+  ctx.fillStyle = 'rgba(205,218,228,.32)';
+  ctx.fillRect(x - w - 8, top - 10, w*2 + 16, 1.5); ctx.fillRect(x - w - 5, top - 2, 1.2, bot - top); ctx.fillRect(x + w - 2, top - 2, 1.2, bot - top);
+  ctx.save(); ctx.beginPath(); ctx.rect(x - w - 12, bot + 2, w*2 + 24, 5); ctx.clip();
+  ctx.fillStyle = '#e8b830'; for (let k = -2; k < 16; k++) { const sx = x - w - 12 + k*9; ctx.beginPath(); ctx.moveTo(sx, bot + 7); ctx.lineTo(sx + 5, bot + 2); ctx.lineTo(sx + 9, bot + 2); ctx.lineTo(sx + 4, bot + 7); ctx.fill(); }
+  ctx.restore();
+  // vinç gövdesi ve uyarı ışığı
+  ctx.fillStyle = '#3a444e'; ctx.beginPath(); ctx.moveTo(x - 36, top - 10); ctx.lineTo(x - 24, top - 26); ctx.lineTo(x + 24, top - 26); ctx.lineTo(x + 36, top - 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(205,218,228,.28)'; ctx.fillRect(x - 24, top - 26, 48, 1.2);
+  ctx.fillStyle = '#1a2129'; ctx.beginPath(); ctx.arc(x, top - 18, 5, 0, 7); ctx.fill();
+  const bl = 0.5 + 0.5*Math.sin(S.t*4 + s);
+  ctx.fillStyle = `rgba(255,186,70,${0.45 + 0.55*bl})`; ctx.beginPath(); ctx.arc(x, top - 30, 3.5, 0, 7); ctx.fill();
+  // pirinç levha
+  ctx.font = '700 10px "Chakra Petch", monospace'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#8a5f1c'; rr(x - 45, top - 58, 90, 19, 4); ctx.fill();
+  ctx.fillStyle = '#d9a441'; rr(x - 44, top - 57, 88, 17, 3); ctx.fill();
+  ctx.fillStyle = '#1b1205'; ctx.fillText('İSTASYON ' + s, x, top - 45);
+  ctx.fillStyle = 'rgba(230,244,247,.8)'; ctx.fillText(fmtM(LAYERS[s].top), x, top - 64);
+}
 function drawShaftAndStations(){
   const deepest = LTOP[save.tier];
   const x = BOAT_X - cam.x;
   if (save.tier > 0 && -cam.y < S.H && deepest - cam.y > 0) {
-    ctx.strokeStyle = 'rgba(200,210,220,.35)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x - 30, Math.max(0, -cam.y)); ctx.lineTo(x - 30, Math.min(S.H, deepest - cam.y)); ctx.moveTo(x + 30, Math.max(0, -cam.y)); ctx.lineTo(x + 30, Math.min(S.H, deepest - cam.y)); ctx.stroke();
+    const y0 = Math.max(0, -cam.y), y1 = Math.min(S.H, deepest - 108 - cam.y);
+    drawCable(x - 30, y0, y1); drawCable(x + 30, y0, y1);
   }
   for (let s = 1; s < NL; s++) {
-    const y = LTOP[s] - cam.y; if (y < -140 || y > S.H + 80) continue;
+    const y = LTOP[s] - cam.y; if (y < -140 || y > S.H + 180) continue;
     const built = s <= save.tier;
     if (!built) {
       ctx.setLineDash([10, 8]); ctx.strokeStyle = 'rgba(255,90,78,.35)'; ctx.lineWidth = 2;
@@ -1026,12 +1081,7 @@ function drawShaftAndStations(){
     }
     ctx.fillStyle = '#3a434c'; ctx.fillRect(x - SHAFT_HALF, y + LEDGE_HALF - 10, 70, 10); ctx.fillRect(x + SHAFT_HALF - 70, y + LEDGE_HALF - 10, 70, 10);
     ctx.fillStyle = '#ffcf3a'; for (let k = 0; k < 6; k++) { ctx.fillRect(x - SHAFT_HALF + k*12, y + LEDGE_HALF - 10, 6, 3); ctx.fillRect(x + SHAFT_HALF - 70 + k*12, y + LEDGE_HALF - 10, 6, 3); }
-    ctx.strokeStyle = '#8a96a3'; ctx.lineWidth = 3; ctx.strokeRect(x - 34, y - 70, 68, 70);
-    ctx.fillStyle = 'rgba(30,40,52,.6)'; ctx.fillRect(x - 32, y - 68, 64, 66);
-    ctx.fillStyle = '#ffcf3a'; ctx.beginPath(); ctx.arc(x, y - 82, 5, 0, 7); ctx.fill();
-    ctx.font = '700 11px "Chakra Petch", monospace'; ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffcf3a'; ctx.fillText('İSTASYON ' + s, x, y - 96);
-    ctx.fillStyle = 'rgba(230,244,247,.8)'; ctx.fillText(fmtM(LAYERS[s].top), x, y - 110);
+    drawStation(x, y, s);
   }
   const ly = limitY() - cam.y;
   if (S.playing && ly > 0 && ly < S.H && limitY() < WORLD_H - 20) {
@@ -1198,6 +1248,13 @@ function drawItemGlows(alpha){
     const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, g.r);
     gr.addColorStop(0, `rgba(${g.c},${0.22 + 0.08*Math.sin(S.t*2 + g.x)})`); gr.addColorStop(1, `rgba(${g.c},0)`);
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(sx, sy, g.r, 0, 7); ctx.fill();
+  }
+  // istasyonların uyarı ışığı
+  for (let s = 1; s <= save.tier; s++) {
+    const sx = BOAT_X - cam.x, sy = LTOP[s] - 128 - cam.y; if (sy < -60 || sy > S.H + 60) continue;
+    const bl = 0.5 + 0.5*Math.sin(S.t*4 + s), gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, 38);
+    gr.addColorStop(0, `rgba(255,170,60,${0.12 + 0.3*bl})`); gr.addColorStop(1, 'rgba(255,170,60,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(sx, sy, 38, 0, 7); ctx.fill();
   }
   ctx.restore();
 }

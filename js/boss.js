@@ -83,7 +83,8 @@ const BT = {rock:0, rv:0, heave:0, hv:0, sink:0, side:1, cracks:[], smokeT:0, px
 // ---------- isabet parçaları ----------
 const pend = [];
 function mkPart(kind, r, tent){
-  const p = {x:0, y:0, r, weak:false, kind, tent:tent || null, dead:false, fl:0,
+  // ownNums: hasar sayılarını silah modülü değil canavar yazar (çarpanlı, gerçekten işleyen hasar).
+  const p = {x:0, y:0, r, weak:false, kind, tent:tent || null, dead:false, fl:0, ownNums:true, na:0, nt:0, nc:'',
     hit(a, o){ if (a > 0 && on && fightable()) pend.push(p, a, (o && o.kind) || ''); }};
   return p;
 }
@@ -151,6 +152,7 @@ function apply(p, a){
   let m = mult(p);
   if (st === 'stagger') m *= 1.2;
   dealt(a*m);
+  num(p, a*m, m > 1.01 ? (WEAK_LBL[p.kind] ? WEAK_LBL[p.kind][1] : '#ffcf3a') : m < 0.7 ? '#9fb0bd' : '#e6f4f7');
   if (st === 'windup' || st === 'ram') DK[p.kind] = (DK[p.kind] || 0) + a*m;
   if (p.kind === 'body') flashB = Math.min(1, flashB + 0.35); else flashH = Math.min(1, flashH + 0.45);
   p.fl = 1;
@@ -168,7 +170,7 @@ function apply(p, a){
   }
 }
 function tentDmg(t, a, k, share){
-  if (t.st === 'cut' || t.st === 'grow') return;
+  if (t.st === 'cut' || t.st === 'grow') return false;
   t.hp -= a; t.fl = 1;
   if (share) dealt(a*0.3);
   if (k === 'net' && t.st !== 'boat') {
@@ -176,6 +178,22 @@ function tentDmg(t, a, k, share){
     if (t.st === 'grab') release(t, true); else if (t.st === 'wind' || t.st === 'strike') { t.st = 'idle'; t.cd = 1.5; }
   }
   if (t.hp <= 0) sever(t);
+  return true;
+}
+// Hasar sayıları: parça başına 0,18 sn toplanır, sonra tek sayı (silahlarla aynı ×10 ölçek).
+const NUMP = [];
+function num(p, d, c){
+  if (!(d > 0)) return;
+  if (p.na <= 0) { p.nt = 0; NUMP.push(p); }
+  p.na += d; p.nc = c;
+}
+function flushNums(dt){
+  for (let i = NUMP.length - 1; i >= 0; i--) {
+    const p = NUMP[i]; p.nt += dt;
+    if (p.nt < 0.18) continue;
+    if (DG.fx && DG.fx.dmgText) DG.fx.dmgText(p.x + rnd(-6, 6), p.y - p.r - 8, String(Math.max(1, Math.round(p.na*10))), p.nc || '#e6f4f7');
+    p.na = 0; NUMP.splice(i, 1);
+  }
 }
 const SINGLE = {dart:1, '':1};
 function resolve(){
@@ -183,7 +201,7 @@ function resolve(){
   const groups = {};
   for (let i = 0; i < L; i += 3) {
     const p = pend[i], a = pend[i + 1], k = pend[i + 2];
-    if (SINGLE[k]) { if (p.tent) tentDmg(p.tent, a, k, true); else apply(p, a); continue; }
+    if (SINGLE[k]) { if (p.tent) { if (tentDmg(p.tent, a, k, true)) num(p, a, '#ffb0a0'); } else apply(p, a); continue; }
     (groups[k] || (groups[k] = [])).push(p, a);
   }
   pend.length = 0;
@@ -196,7 +214,7 @@ function resolve(){
     const seen = [];
     for (let i = 0; i < g.length; i += 2) {
       const p = g[i], a = g[i + 1];
-      if (p.tent && seen.indexOf(p.tent) < 0) { seen.push(p.tent); tentDmg(p.tent, a, k, false); }
+      if (p.tent && seen.indexOf(p.tent) < 0) { seen.push(p.tent); if (tentDmg(p.tent, a, k, false)) num(p, a, '#ffb0a0'); }
       if (a < mx*0.85) continue;
       const v = a*mult(p); if (v > bv) { bv = v; best = p; ba = a; }
     }
@@ -315,7 +333,7 @@ function resetTents(){
   }
 }
 function clearAll(){
-  PT.length = 0; GL.length = 0; DTN.length = 0; RINGS.length = 0; pend.length = 0; TG.length = 0;
+  PT.length = 0; GL.length = 0; DTN.length = 0; RINGS.length = 0; pend.length = 0; TG.length = 0; for (const p of NUMP) p.na = 0; NUMP.length = 0;
   grabTent = null; siegeTent = null; siegeOn = false;
 }
 function resetBoat(){ BT.rock = BT.rv = BT.heave = BT.hv = BT.sink = 0; BT.cracks.length = 0; BT.side = 1; BT.smokeT = 0; }
@@ -872,6 +890,7 @@ function update(dt){
   const live = on && S.playing && !S.riding;
   if (live) fightT += dt;
   resolve();
+  flushNums(dt);
   think(dt, live);
   moveBody(dt);
   updTents(dt, live);
