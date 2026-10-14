@@ -296,7 +296,7 @@ function spawnMon(t, x, y, vx, vy){
   if (Array.isArray(m)) m = m[0] || null;
   if (!m && M && M.spawnLayer) {
     try { const all = M.spawnLayer(L) || []; m = all.find(o => o.t === t) || null; } catch (e) { m = null; }
-    if (m) { const ox = m.x, oy = m.y; m.x = x; m.y = y; if (m.hy === oy) m.hy = y; if (m.hx === ox) m.hx = x; }
+    if (m) { m.rid = null; const ox = m.x, oy = m.y; m.x = x; m.y = y; if (m.hy === oy) m.hy = y; if (m.hx === ox) m.hx = x; }
   }
   if (!m) { const md = DG.data.MON[t], h = md.hp*(1 + 0.35*L); m = {t, L, x, y, hx:x, hy:y, vx, vy, hp:h, maxHp:h, size:1, cd:0, stun:0, dead:false, ph:rnd(0, TAU)}; }
   if (!(isFinite(m.x) && isFinite(m.y))) { m.x = x; m.y = y; }
@@ -1220,15 +1220,20 @@ function drawParticles(ctx, ox, oy){
 }
 
 // ---------- dışa açık çizim ----------
+// Boyalı sprite kancası (js/art.js): gövde zinciri ve baş dönüşümü paylaşılır; sprite yoksa prosedürel çizim.
+const BA = {H, nodes, PX, PY, NX, NY, RAD, N, jaw:0, eyeO:0, gillO:0, flashB:0, flashH:0};
+const ART = () => DG.art && DG.art.boss && DG.art.boss.ready() ? DG.art.boss : null;
+function bossArt(){ BA.jaw = jaw; BA.eyeO = eyeO; BA.gillO = gillO; BA.flashB = flashB; BA.flashH = flashH; return BA; }
 function draw(ctx){
   if (!vis) return;
   const S = DG.S, ox = -S.cam.x, oy = -S.cam.y;
   const bodyOn = box.x1 + ox > 0 && box.x0 + ox < S.W && box.y1 + oy > 0 && box.y0 + oy < S.H;
   const headOn = onScr(H.x + ox, H.y + oy, 330);
   ctx.save();
-  if (bodyOn) drawBody(ctx, ox, oy);
+  const art = ART();
+  if (bodyOn && !(art && art.body(ctx, bossArt(), ox, oy))) drawBody(ctx, ox, oy);
   for (const t of TN) drawTent(ctx, t, ox, oy);
-  if (headOn) drawHead(ctx, ox, oy);
+  if (headOn && !(art && art.head(ctx, bossArt(), ox, oy))) drawHead(ctx, ox, oy);
   drawParticles(ctx, ox, oy);
   ctx.restore();
   drawFog(ctx);
@@ -1286,13 +1291,14 @@ function drawGlow(ctx){
   if (headOn && dimK > 0) {
     ctx.save(); ctx.translate(H.x + ox, H.y + oy); ctx.rotate(H.a); ctx.scale(1, H.rd);
     const eo = eyeO*dimK, hitBoost = P_EYE.fl > 0 ? P_EYE.fl : 0;
-    for (const e of EYES) {
+    const art = ART();
+    for (const e of (art ? art.eyes : EYES)) {
       glow(ctx, ec, e.x, e.y, e.r*(2.6 + 3.2*eo + hitBoost*2), 0.34 + 0.6*eo + 0.3*hitBoost);
     }
     if (gillO > 0.05) {
       const go = gillO*dimK;
       glow(ctx, gc, -49, 13, 80, 0.45*go);
-      ctx.strokeStyle = rgba(gc, 0.85*go); ctx.lineWidth = 1.5 + go*2.5; ctx.lineCap = 'round'; ctx.stroke(paths().gills);
+      ctx.strokeStyle = rgba(gc, 0.85*go); ctx.lineWidth = 1.5 + go*2.5; ctx.lineCap = 'round'; if (!art) ctx.stroke(paths().gills);
     }
     if (jaw > 0.1) {
       const spit = st === 'spit' ? clamp(stT/0.85, 0, 1) : 0;

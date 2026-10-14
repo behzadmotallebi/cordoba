@@ -28,12 +28,20 @@ function segDist(px, py, ax, ay, bx, by){
 }
 
 // ---------- tablolar ----------
-const CD = {jelly:1.1, eel:1.0, shark:1.5, angler:1.4, viper:0.9, squid:1.6, serpent:1.4, guardian:1.4, mimic:1.3, octopus:1.6};
+const CD = {jelly:1.1, eel:1.0, shark:1.5, angler:1.4, viper:0.9, squid:1.6, serpent:1.4, guardian:1.4, mimic:1.3, octopus:1.6, urchin:0.9, mine:0};
 const MASS = {serpent:1.9, guardian:1.6, squid:1.4, shark:1.2, octopus:1.5, angler:1.1};
 // [en erken kat, şans] dev boy (size > 1)
 const GIANT = {jelly:[6, 0.14], shark:[4, 0.10], angler:[5, 0.09], squid:[6, 0.12], serpent:[7, 0.12], octopus:[6, 0.12], guardian:[10, 0.10], eel:[5, 0.07], mimic:[8, 0.10]};
-const ANCHORED = {eel:1, octopus:1};
+const ANCHORED = {eel:1, octopus:1, urchin:1, mine:1};
+const OBST = {urchin:1, mine:1};   // kıpırdamayan engeller: yapay zekâ basit, sersemlemez, itilmez
 const VIS = {viper:1.3, guardian:1.12, angler:1.08};   // çizim ve isabet boyu çarpanı
+
+// ---------- tohumlu rastgele: katın canavar listesi her açılışta aynı ----------
+function seeded(a){
+  return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0)/4294967296; };
+}
+// Üretimde bütün istasyonlar (açılmamış olanlar da) güvenli sayılır: liste açılan katlara göre değişmesin.
+const safeGen = (x, y) => DG.U.isSafeAny ? DG.U.isSafeAny(x, y) : DG.U.isSafe(x, y);
 
 // ---------- kare önbelleği ----------
 const F = {t:-1, camo:false, sonar:false, flares:[], boss:false, dSafe:false, hunt:false, light:120, dL:0, near:[]};
@@ -167,6 +175,12 @@ function palette(t, L, m){
       P.weed = 'rgba(86,146,92,.85)'; P.burst = '#ffcf3a';
       break;
     }
+    case 'urchin': {
+      const c = L < 2 ? [58, 26, 74] : L < 4 ? [70, 22, 30] : [36, 30, 48];
+      P.body = css(c); P.spine = css(shade(c, 0.7)); P.tip = css(mixc(c, [255, 200, 240], 0.55)); P.hi = 'rgba(255,255,255,.18)'; P.burst = css(mixc(c, [200, 120, 220], 0.4));
+      break;
+    }
+    case 'mine': P.body = '#3b3630'; P.rust = '#7a4e2c'; P.horn = '#58524a'; P.cap = '#9a8e7a'; P.chain = 'rgba(60,56,50,.85)'; P.burst = '#ffb03a'; break;
     case 'octopus': {
       m.realRGB = mixc([212, 98, 66], [132, 30, 66], k); m.spotRGB = mixc(m.realRGB, [255, 206, 156], 0.38);
       P.eye = '#ffcf3a'; P.eyeG = '255,207,58'; P.sucker = 'rgba(255,226,206,.85)'; P.burst = css(m.realRGB);
@@ -234,6 +248,17 @@ function make(t, L, x, y, o){
     }
     case 'guardian': m.orbs = []; m.rune = 0.5; m.glyph = [0, 1, 2, 3].sort(() => Math.random() - 0.5).slice(0, 3); break;
     case 'mimic': m.hidden = !o.hunt; m.rv = m.hidden ? 0 : 1; m.s = m.hidden ? 'hide' : 'hunt'; m.open = m.hidden ? 0 : 0.6; m.walk = 0; m.tw = rnd(3, 8); m.twA = 0; m.nT = 6 + Math.round(sav*3); break;
+    case 'urchin': {
+      m.anch = o.anchor || 'L'; m.dir = m.anch === 'R' ? -1 : 1;
+      m.balls = [];
+      const nb = 2 + Math.round(Math.random()*2);
+      for (let i = 0; i < nb; i++) m.balls.push([(i === 0 ? 0 : rnd(-12, 12)), (i === 0 ? 0 : rnd(-16, 16)), i === 0 ? 1 : rnd(0.6, 0.85)]);
+      if (m.anch !== 'F') for (const b of m.balls) b[0] = Math.abs(b[0])*m.dir;
+      else for (const b of m.balls) b[1] = -Math.abs(b[1])*0.5;
+      m.hx = x; m.hy = y;
+      break;
+    }
+    case 'mine': m.hx = x; m.hy = y; m.chain = 70 + Math.random()*70; break;
     case 'octopus': {
       m.anch = o.anchor || (x > WORLD_W/2 ? 'R' : 'L'); m.li = o.li || 0;
       if (m.anch === 'F') { m.nx = 0; m.ny = -1; } else if (m.anch === 'L') { m.nx = 1; m.ny = 0; } else { m.nx = -1; m.ny = 0; }
@@ -283,7 +308,7 @@ function openSpot(L, f0, f1, pad){
     const y = clamp(top + rnd(f0, f1)*h, top + 110, top + h - 110), b = U.boundsAt(y);
     if (b[1] - b[0] < 2*pad + 10) continue;
     const x = rnd(b[0] + pad, b[1] - pad);
-    if (!U.isSafe(x, y) && !blocked(x, y, 30)) return [x, y];
+    if (!safeGen(x, y) && !blocked(x, y, 30)) return [x, y];
   }
   return null;
 }
@@ -295,12 +320,12 @@ function placeOcto(L, f0, f1){
       const lo = side ? BOAT_X + SHAFT_HALF + 50 : w + 50, hi = side ? WORLD_W - w - 50 : BOAT_X - SHAFT_HALF - 50;
       if (hi <= lo) continue;
       const bx = rnd(lo, hi), by = ledgeTop(bx, i);
-      if (U.isSafe(bx, by - 24)) continue;
+      if (safeGen(bx, by - 24)) continue;
       return make('octopus', L, bx, by, {anchor:'F', li:i});
     }
     const top = U.LTOP[L], h = U.LH(L), y = clamp(top + rnd(f0, f1)*h, top + 130, top + h - 130), side = Math.random() < 0.5 ? 0 : 1;
     const bx = side ? WORLD_W - U.wallW(y, 1) + 1 : U.wallW(y, 0) - 1;
-    if (U.isSafe(bx + (side ? -20 : 20), y)) continue;
+    if (safeGen(bx + (side ? -20 : 20), y)) continue;
     return make('octopus', L, bx, y, {anchor:side ? 'R' : 'L'});
   }
   return null;
@@ -311,40 +336,81 @@ function place(t, L, f0, f1){
     for (let k = 0; k < 10; k++) {
       const top = U.LTOP[L], h = U.LH(L), y = clamp(top + rnd(f0, f1)*h, top + 100, top + h - 100), side = Math.random() < 0.5 ? 0 : 1;
       const hx = side ? WORLD_W - U.wallW(y, 1) + 3 : U.wallW(y, 0) - 3;
-      if (!U.isSafe(hx + (side ? -24 : 24), y)) return make('eel', L, hx, y, {side});
+      if (!safeGen(hx + (side ? -24 : 24), y)) return make('eel', L, hx, y, {side});
     }
     return null;
   }
   if (t === 'octopus') return placeOcto(L, f0, f1);
+  if (t === 'urchin') return placeUrchin(L, f0, f1);
+  if (t === 'mine') { const p = openSpot(L, f0, f1, 70); return p && make('mine', L, p[0], p[1]); }
   if (t === 'mimic') { const p = openSpot(L, Math.max(f0, 0.5), Math.max(f1, 0.55), 22) || openSpot(L, f0, f1, 22); return p && make('mimic', L, p[0], p[1]); }
   const p = openSpot(L, f0, f1, 40);
   return p && make(t, L, p[0], p[1]);
+}
+// Deniz kestanesi kümesi: duvar dibine ya da alttaki rafın üstüne yapışık.
+function placeUrchin(L, f0, f1){
+  const U = DG.U;
+  for (let k = 0; k < 10; k++) {
+    if (L + 1 < NL && Math.random() < 0.25) {
+      const i = L + 1, side = Math.random() < 0.5 ? 0 : 1, w = U.wallW(U.LTOP[i] - 40, side);
+      const lo = side ? BOAT_X + SHAFT_HALF + 40 : w + 40, hi = side ? WORLD_W - w - 40 : BOAT_X - SHAFT_HALF - 40;
+      if (hi <= lo) continue;
+      const bx = rnd(lo, hi), by = ledgeTop(bx, i) - 9;
+      if (safeGen(bx, by - 20)) continue;
+      return make('urchin', L, bx, by, {anchor:'F'});
+    }
+    const top = U.LTOP[L], h = U.LH(L), y = clamp(top + rnd(f0, f1)*h, top + 120, top + h - 120), side = Math.random() < 0.5 ? 0 : 1;
+    const bx = side ? WORLD_W - U.wallW(y, 1) - 7 : U.wallW(y, 0) + 7;
+    if (safeGen(bx, y) || blocked(bx, y, 30)) continue;
+    return make('urchin', L, bx, y, {anchor:side ? 'R' : 'L'});
+  }
+  return null;
+}
+// Denizanası perdesi: katı enlemesine kesen, aralıkları dar bir sıra. Aralıklar süzüldükçe açılıp kapanır.
+function curtain(L, f0, f1, out){
+  const U = DG.U, top = U.LTOP[L], h = U.LH(L);
+  for (let k = 0; k < 8; k++) {
+    const y = clamp(top + rnd(f0, f1)*h, top + 260, top + h - 260);
+    if (safeGen(BOAT_X, y) || safeGen(BOAT_X, y - 120) || safeGen(BOAT_X, y + 120)) continue;
+    const b = U.boundsAt(y), lo = b[0] + 36, hi = b[1] - 36;
+    if (hi - lo < 200) continue;
+    const n = Math.max(4, Math.round((hi - lo)/140)), step = (hi - lo)/(n - 1);
+    for (let i = 0; i < n; i++) {
+      const m = make('jelly', L, lo + i*step + rnd(-14, 14), y + rnd(-26, 26));
+      m.dvx = rnd(-6, 6) || 4; m.curtain = true; out.push(m);
+    }
+    return;
+  }
 }
 function strongest(L){
   let best = 'shark', bd = -1;
   for (const [t] of LAYERS[L].mons) { if (t === 'jelly' || t === 'eel' || t === 'mimic' || t === 'octopus') continue; if (MON[t].dmg > bd) { bd = MON[t].dmg; best = t; } }
   return best;
 }
-// Katın eseri yanında 1-2 dev bekçi (kat >= 2).
+// Katın eseri yanında bekçiler: ilk katlarda 2 normal boy, sonra biri dev; 5. kattan sonra 3 tane.
+// Eserin yeri kata göre sabittir (DG.U.relicPos), bekçiler eser alınmış olsa da listede kalır.
 function keepers(L, out){
-  if (L < 2) return;
-  const S = DG.S, U = DG.U;
-  const rel = S.items && S.items.find(i => i.relic && i.L === L && !i.taken);
+  const U = DG.U;
+  const rel = U.relicPos ? U.relicPos(L) : null;
   if (!rel) return;
   const t = L === NL - 1 ? 'guardian' : strongest(L);
-  for (let i = 0; i < (L >= 5 ? 2 : 1); i++) {
-    for (let k = 0; k < 8; k++) {
-      const x = rel.x + rnd(-150, 150), y = rel.y - rnd(110, 240), b = U.boundsAt(y);
-      if (x < b[0] + 30 || x > b[1] - 30 || U.isSafe(x, y) || blocked(x, y, 40)) continue;
-      out.push(make(t, L, x, y, {size:rnd(1.3, 1.45), keeper:true}));
+  const n = L < 5 ? 2 : 3;
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 10; k++) {
+      const x = rel.x + rnd(-170, 170), y = rel.y - rnd(110, 260), b = U.boundsAt(y);
+      if (x < b[0] + 30 || x > b[1] - 30 || safeGen(x, y) || blocked(x, y, 40)) continue;
+      const giant = L >= 2 && i === 0;
+      out.push(make(t, L, x, y, {size:giant ? rnd(1.3, 1.45) : 1, keeper:true, hpMul:L < 2 ? 1.25 : 1}));
       break;
     }
   }
 }
 
 // ---------- algı ve hareket ----------
-const spdOf = m => (MON[m.t].spd || 0.6)*140*Math.pow(1.15, m.L)*(1 + 0.03*m.L)*(m.size > 1 ? 1.08 : 1);
-const aggroOf = m => (MON[m.t].aggro || 200)*(1 + 0.04*m.L)*(m.keeper ? 1.3 : 1);
+// Hız katla dalgıçla aynı oranda büyür (core speedAt: 1.12^kat).
+const spdOf = m => (MON[m.t].spd || 0.6)*140*Math.pow(1.12, m.L)*(1 + 0.03*m.L)*(m.size > 1 ? 1.08 : 1);
+// Sezme menzili: genel %20 daha geniş (ilk katlar da tehlikeli olsun), katla hafifçe artar.
+const aggroOf = m => (MON[m.t].aggro || 200)*1.2*(1 + 0.04*m.L)*(m.keeper ? 1.3 : 1);
 function sense(m){ const D = DG.S.diver; m.dx = D.x - m.x; m.dy = D.y - m.y; m.dd = Math.hypot(m.dx, m.dy) || 1; }
 const canHunt = m => F.hunt && (m.ignoreSafe || F.boss || !F.dSafe);
 const sameZone = m => F.boss || m.force || DG.U.layerOf(m.y) === F.dL || Math.abs(m.dy) < 140;
@@ -456,6 +522,7 @@ function aiJelly(m, dt){
   m.pulse = Math.max(0, m.pulse - dt*1.3);
   let ax = m.dvx;
   if (m.L >= 6 && wantsHunt(m, 240)) ax = Math.sign(m.dx)*sp*0.22;    // derin denizanası avına süzülür
+  else if (wantsHunt(m, 170)) { ax = Math.sign(m.dx)*sp*0.25; m.hy += clamp(m.dy, -1, 1)*14*dt; }   // sığdakiler de yakına gelene süzülür
   if (Math.abs(m.x - m.hx) > 240) m.dvx = -Math.sign(m.x - m.hx)*Math.abs(m.dvx);
   m.vx += (ax - m.vx)*Math.min(1, dt*0.9);
   m.vy += (10 + (m.hy - m.y)*0.04)*dt; m.vy *= Math.exp(-dt*0.8);
@@ -472,6 +539,9 @@ function aiJelly(m, dt){
 // Deliğine çekilmiş ve dalgıca uzanamayan yılan balığı zararsızdır (silahların otomatik nişanı ona mermi harcamaz).
 const eelReach = m => (150 + 9*m.L)*Math.min(1.6, m.sc);
 function lurking(m){
+  // Mayın hiçbir zaman otomatik hedef olmaz (yakında vurmak dalgıcı da yakar); kestane sadece dibindeyken.
+  if (m && m.t === 'mine') return !m.dead;
+  if (m && m.t === 'urchin') return !m.dead && !(m.dd < 150);
   if (!m || m.t !== 'eel' || m.dead || (m.s !== 'idle' && m.s !== 'back') || !(m.ext < 32)) return false;
   const D = DG.S.diver, ox = (D.x - m.hx)*m.dir, oy = D.y - m.hy;
   return !(ox > -36 && ox < eelReach(m) + 40 && Math.abs(oy) < 100 + 20*m.sc);
@@ -917,7 +987,32 @@ function aiOcto(m, dt){
   m.ox = m.bx; m.oy = m.by;
 }
 
-const AI = {jelly:aiJelly, eel:aiEel, shark:aiShark, angler:aiAngler, viper:aiViper, squid:aiSquid, serpent:aiSerpent, guardian:aiGuardian, mimic:aiMimic, octopus:aiOcto};
+function aiUrchin(m, dt){
+  sense(m);
+  if (canBite(m, true) && m.dd < MON.urchin.r*m.sc + 12) doBite(m, 1);
+}
+function aiMine(m, dt){
+  sense(m);
+  m.y = m.hy + Math.sin(m.ph*1.1 + m.seed*6)*4; m.x = m.hx + Math.sin(m.ph*0.7 + m.seed*3)*2;
+  m.ox = m.x; m.oy = m.y;
+  const S = DG.S;
+  if (S.playing && !S.riding && !F.dSafe && m.dd < MON.mine.r*m.sc + 12) { m.touched = true; kill(m); }
+}
+// Mayın patlaması: dalgıca uzaklığa göre hasar, çevredeki canavarlara (ve mayınlara: zincirleme) da.
+function mineBlast(m){
+  const S = DG.S, D = S.diver, core = DG.core, R = MON.mine.blast*(1 + 0.02*m.L);
+  if (DG.fx) { if (DG.fx.explosion) DG.fx.explosion(m.x, m.y, R); if (DG.fx.shake) DG.fx.shake(7); }
+  if (core.sfx) core.sfx('boom'); if (core.buzz) core.buzz(90);
+  const d = Math.hypot(D.x - m.x, D.y - m.y);
+  if (d < R + 10 && S.playing) core.hurt(core.dmgFor(m)*(1 - 0.55*clamp(d/R, 0, 1)), MON.mine.n, m);
+  for (const o of S.mons) {
+    if (o === m || o.dead) continue;
+    const dx = o.x - m.x, dy = o.y - m.y, dd = Math.hypot(dx, dy);
+    if (dd < R) DG.mon.damage(o, 3*(1 + 0.35*m.L)*(1 - 0.4*dd/R), {stun:1.2, kind:'blast', kx:dx/(dd || 1)*320, ky:dy/(dd || 1)*320});
+  }
+}
+
+const AI = {urchin:aiUrchin, mine:aiMine, jelly:aiJelly, eel:aiEel, shark:aiShark, angler:aiAngler, viper:aiViper, squid:aiSquid, serpent:aiSerpent, guardian:aiGuardian, mimic:aiMimic, octopus:aiOcto};
 
 // ---------- çizim yardımcıları ----------
 const TX = new Float32Array(72), TY = new Float32Array(72), TW = new Float32Array(72), FX = new Float32Array(72), FY = new Float32Array(72);
@@ -1484,7 +1579,40 @@ function drawOcto(ctx, m, P){
   }
 }
 
-const BODY = {jelly:drawJelly, eel:drawEelHead, shark:drawShark, angler:drawAngler, viper:drawViper, squid:drawSquid, serpent:drawSerpentHead, guardian:drawGuardian, mimic:drawMimic, octopus:drawOcto};
+function drawUrchin(ctx, m, P){
+  const t = DG.S.t, n = 14;
+  for (const b of m.balls) {
+    const r = 7*b[2], cx = b[0], cy = b[1];
+    ctx.strokeStyle = P.spine; ctx.lineWidth = 1.3; ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = i*TAU/n + b[2]*3 + Math.sin(t*1.6 + i + b[0])*0.06, l = r*(2 + 0.25*Math.sin(i*2.3 + b[1]));
+      ctx.moveTo(cx + Math.cos(a)*r*0.8, cy + Math.sin(a)*r*0.8); ctx.lineTo(cx + Math.cos(a)*l, cy + Math.sin(a)*l);
+    }
+    ctx.stroke();
+    ctx.fillStyle = P.body; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.hi; ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.35, r*0.35, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.tip;
+    for (let i = 0; i < n; i += 2) { const a = i*TAU/n + b[2]*3, l = r*2; ctx.fillRect(cx + Math.cos(a)*l - 0.8, cy + Math.sin(a)*l - 0.8, 1.6, 1.6); }
+  }
+}
+function drawMine(ctx, m, P){
+  // zincir aşağı sarkar
+  ctx.strokeStyle = P.chain; ctx.lineWidth = 1.6; ctx.setLineDash([3, 2]);
+  ctx.beginPath(); ctx.moveTo(0, 11); ctx.lineTo(Math.sin(m.ph*0.7)*3, 11 + m.chain); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = P.horn;
+  for (let i = 0; i < 8; i++) {
+    const a = i*TAU/8 + 0.2;
+    ctx.save(); ctx.rotate(a); ctx.fillRect(9, -1.6, 6, 3.2); ctx.fillStyle = P.cap; ctx.fillRect(14, -2.4, 2.4, 4.8); ctx.fillStyle = P.horn; ctx.restore();
+  }
+  ctx.fillStyle = P.body; ctx.beginPath(); ctx.arc(0, 0, 11, 0, TAU); ctx.fill();
+  ctx.fillStyle = P.rust; ctx.beginPath(); ctx.arc(-3, 3, 5, 0, TAU); ctx.arc(4, -4, 3, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(11, 0); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.beginPath(); ctx.arc(-4, -4, 3.5, 0, TAU); ctx.fill();
+  const bl = Math.sin(DG.S.t*5 + m.seed*9) > 0.3;
+  ctx.fillStyle = bl ? '#ff3b2f' : '#5a1410'; ctx.beginPath(); ctx.arc(0, -11, 2.2, 0, TAU); ctx.fill();
+}
+
+const BODY = {urchin:drawUrchin, mine:drawMine, jelly:drawJelly, eel:drawEelHead, shark:drawShark, angler:drawAngler, viper:drawViper, squid:drawSquid, serpent:drawSerpentHead, guardian:drawGuardian, mimic:drawMimic, octopus:drawOcto};
 
 // ---------- karanlık üstü: gözler, biyoışık ----------
 function eyeGlow(ctx, m, lx, ly, rgb, a, sz){
@@ -1513,6 +1641,7 @@ function kill(m){
   if (m.dead) return;
   m.dead = true; m.hp = 0;
   try { DG.core.bounty(m); } catch (e) {}
+  if (m.t === 'mine') { try { mineBlast(m); } catch (e) { console.error(e); } }
   const fx = DG.fx; if (!fx || !fx.burst) return;
   const big = m.size > 1 || m.t === 'serpent' || m.t === 'squid';
   fx.burst(m.x, m.y, m.pal.burst, big ? 22 : 12, big ? 260 : 180);
@@ -1526,30 +1655,105 @@ function kill(m){
 
 // ---------- dışa açık API ----------
 DG.mon = {
-  spawnLayer(L){
-    const out = [], ly = LAYERS[L], dens = 1 + 0.12*L, h = DG.U.LH(L);
-    for (const [t, f0, f1, per] of ly.mons) {
-      if (!MON[t]) continue;
-      const n = Math.round(per*dens*(f1 - f0)*h/1000);
-      if (t === 'viper') {
-        // sürüler halinde
-        let left = n;
-        while (left > 0) {
-          const g = Math.min(left, 3 + (Math.random()*3|0)); left -= g;
-          const p = openSpot(L, f0, f1, 60); if (!p) continue;
-          const lead = make(t, L, p[0], p[1]); out.push(lead);
-          for (let i = 1; i < g; i++) {
-            const f = make(t, L, p[0] + rnd(-40, 40), p[1] + rnd(-26, 26));
-            f.lead = lead; f.offx = rnd(-46, 46); f.offy = rnd(-28, 28); f.hx = f.x; f.hy = f.y; out.push(f);
+  // Katın sabit canavar listesi: kat ve Yeni Sefer+ turuyla tohumlanır, her çağrıda aynı sırayla aynı canavarlar.
+  // Her canavara m.rid (liste sırası) verilir; çekirdek öldürülenleri kayıtta tutar ve bir daha yaratmaz.
+  spawnLayer(L, seed){
+    const out = [], ly = LAYERS[L], dens = 1 + 0.08*L, h = DG.U.LH(L), U = DG.U;
+    const R0 = Math.random;
+    Math.random = seeded(seed != null ? seed : L*7919 + 17);
+    try {
+      for (const [t, f0, f1, per] of ly.mons) {
+        if (!MON[t]) continue;
+        const n = Math.round(per*dens*(f1 - f0)*h/1000);
+        if (t === 'viper') {
+          // sürüler halinde (her balık ayrı sayılır)
+          let left = n;
+          while (left > 0) {
+            const g = Math.min(left, 3 + (Math.random()*3|0)); left -= g;
+            const p = openSpot(L, f0, f1, 60); if (!p) continue;
+            const lead = make(t, L, p[0], p[1]); out.push(lead);
+            for (let i = 1; i < g; i++) {
+              const f = make(t, L, p[0] + rnd(-40, 40), p[1] + rnd(-26, 26));
+              f.lead = lead; f.offx = rnd(-46, 46); f.offy = rnd(-28, 28); f.hx = f.x; f.hy = f.y; out.push(f);
+            }
+          }
+          continue;
+        }
+        for (let i = 0; i < n; i++) { const m = place(t, L, f0, f1); if (m) out.push(m); }
+      }
+      for (const [t, f0, f1, per] of (ly.obst || [])) {
+        if (t === 'vent') continue;   // kırılmaz baca: spawnHazards()
+        const n = Math.max(1, Math.round(per*dens*(f1 - f0)*h/1000));
+        if (t === 'curtain') { for (let i = 0; i < n; i++) curtain(L, f0, f1, out); continue; }
+        if (!MON[t]) continue;
+        for (let i = 0; i < n; i++) { const m = place(t, L, f0, f1); if (m) out.push(m); }
+      }
+      keepers(L, out);
+    } finally { Math.random = R0; }
+    const list = out.filter(m => !safeGen(m.x, m.y) && (OBST[m.t] || !U.inLedge(m.x, m.y)));
+    list.forEach((m, i) => { m.rid = i; });
+    return list;
+  },
+  // Kırılmaz engeller (kızgın bacalar): katın tohumuyla hep aynı yerlerde. Çekirdek listeyi tutar, update/draw çağırır.
+  spawnHazards(L, seed){
+    const ly = LAYERS[L], out = [], U = DG.U, h = U.LH(L), top = U.LTOP[L], dens = 1 + 0.08*L;
+    const R0 = Math.random;
+    Math.random = seeded((seed != null ? seed : L*7919 + 17) ^ 0x5bd1e995);
+    try {
+      for (const [t, f0, f1, per] of (ly.obst || [])) {
+        if (t !== 'vent') continue;
+        const n = Math.max(1, Math.round(per*dens*(f1 - f0)*h/1000));
+        for (let i = 0; i < n; i++) {
+          for (let k = 0; k < 8; k++) {
+            const y = clamp(top + rnd(f0, f1)*h, top + 200, top + h - 200), side = Math.random() < 0.5 ? 0 : 1;
+            const x = side ? WORLD_W - U.wallW(y, 1) + 2 : U.wallW(y, 0) - 2;
+            if (safeGen(x + (side ? -60 : 60), y) || blocked(x, y, 60)) continue;
+            out.push({t:'vent', L, x, y, dir:side ? -1 : 1, len:220 + 8*L, per:rnd(4.2, 6.2), off:rnd(0, 6), hitC:-1, k:0, st:0});
+            break;
           }
         }
-        continue;
       }
-      for (let i = 0; i < n; i++) { const m = place(t, L, f0, f1); if (m) out.push(m); }
-    }
-    keepers(L, out);
+    } finally { Math.random = R0; }
     return out;
   },
+  // Baca döngüsü: 0..0.55 boşta, 0.55..0.75 hazırlık (kabarcık, kızıl ışık), 0.75..1 fışkırma (fışkırma başına en çok bir hasar).
+  updateHazard(hz, dt){
+    const S = DG.S, D = S.diver, c = (S.t + hz.off)/hz.per, ph = c - Math.floor(c), cyc = Math.floor(c);
+    hz.st = ph < 0.55 ? 0 : ph < 0.75 ? 1 : 2;
+    hz.k = hz.st === 2 ? Math.sin((ph - 0.75)/0.25*Math.PI) : hz.st === 1 ? (ph - 0.55)/0.2*0.4 : 0;
+    if (hz.st === 2 && hz.k > 0.25 && hz.hitC !== cyc && S.playing && !S.riding && !DG.U.isSafe(D.x, D.y)) {
+      const along = (D.x - hz.x)*hz.dir, len = hz.len*Math.min(1, hz.k*1.4), w = 14 + 30*clamp(along/hz.len, 0, 1);
+      if (along > -6 && along < len + 10 && Math.abs(D.y - hz.y) < w + 10) {
+        hz.hitC = cyc;
+        DG.core.hurt(DG.core.dmgFor({t:'vent', L:hz.L, size:1}), MON.vent.n, {x:D.x - hz.dir*60, y:hz.y});
+        if (DG.fx && DG.fx.burst) DG.fx.burst(D.x, D.y, '#ffb050', 10, 160);
+      }
+    }
+  },
+  drawHazard(ctx, hz, glowPass){
+    const S = DG.S, cam = S.cam, x = hz.x - cam.x, y = hz.y - cam.y, d = hz.dir;
+    if (y < -120 || y > S.H + 120) return;
+    if (!glowPass) {
+      // duvardaki kızgın ağız: koyu höyük, içinde çatlak
+      ctx.fillStyle = '#2a1410'; ctx.beginPath(); ctx.moveTo(x - d*4, y - 30); ctx.quadraticCurveTo(x + d*26, y - 18, x + d*30, y); ctx.quadraticCurveTo(x + d*26, y + 18, x - d*4, y + 30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = hz.st ? '#ff7a2a' : '#7a2a14'; ctx.beginPath(); ctx.ellipse(x + d*26, y, 4, 9, 0, 0, TAU); ctx.fill();
+      return;
+    }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    glow(ctx, x + d*28, y, 30 + 30*hz.k, '255,110,40', 0.22 + 0.5*hz.k + (hz.st === 1 ? 0.25 : 0));
+    if (hz.st === 1) {
+      for (let i = 0; i < 5; i++) { const f = ((S.t*1.6 + i*0.2 + hz.off) % 1); glow(ctx, x + d*(30 + f*70), y + Math.sin(i*2.1 + S.t*6)*8, 5, '255,170,90', 0.7*(1 - f)); }
+    } else if (hz.st === 2) {
+      const len = hz.len*Math.min(1, hz.k*1.4), g = ctx.createLinearGradient(x + d*28, y, x + d*(28 + len), y);
+      g.addColorStop(0, 'rgba(255,230,170,.75)'); g.addColorStop(0.35, 'rgba(255,130,50,.45)'); g.addColorStop(1, 'rgba(255,90,30,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x + d*26, y - 8);
+      for (let i = 1; i <= 8; i++) { const f = i/8; ctx.lineTo(x + d*(26 + len*f), y - 8 - 34*f + Math.sin(S.t*20 + i)*4*f); }
+      for (let i = 8; i >= 1; i--) { const f = i/8; ctx.lineTo(x + d*(26 + len*f), y + 8 + 34*f + Math.sin(S.t*18 + i*1.7)*4*f); }
+      ctx.lineTo(x + d*26, y + 8); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  },
+  hazardLight(hz){ return hz.k > 0.05 ? {x:hz.x + hz.dir*(40 + hz.len*0.3*hz.k), y:hz.y, r:60 + 90*hz.k, k:0.5*Math.min(1, hz.k)} : null; },
   spawnAt(type, x, y, L, opts){
     if (!MON[type] || !DG.S) return null;
     const o = Object.assign({}, opts || {}), U = DG.U;
@@ -1576,6 +1780,7 @@ DG.mon = {
     fr();
     m.ph += dt;
     if (m.cd > 0) m.cd -= dt;
+    if (OBST[m.t]) { if (m.flash > 0) m.flash -= dt; if (m.hitT > 0) m.hitT -= dt; if (m.sq > 0) m.sq = Math.max(0, m.sq - dt*7); m.stun = 0; m.kx = m.ky = 0; AI[m.t](m, dt); return; }
     // sersemlik direnci: tek hedefli silahların üst üste sersemletmesi birikir, eşiği aşınca kısa bir bağışıklık başlar
     if (m.sImm > 0) m.sImm -= dt; else if (m.sAcc > 0) m.sAcc = Math.max(0, m.sAcc - dt*0.4);
     if (m.flash > 0) m.flash -= dt;
@@ -1616,7 +1821,7 @@ DG.mon = {
     const S = DG.S, D = S.diver;
     m.hp -= amt; m.flash = 0.13; m.sq = 1; m.hitT = 2.4; m.mem = Math.max(m.mem, 5);
     if (m.hidden) reveal(m);
-    const stun = o.stun != null ? o.stun : (o.kind === 'beam' ? 0 : 0.15);
+    const stun = OBST[m.t] ? 0 : o.stun != null ? o.stun : (o.kind === 'beam' ? 0 : 0.15);
     // Ağ, sonik, patlama, torpido ve kalkan her zaman tam sersemletir; zıpkın/tüfek ve ışın birikir ve bağışıklığa takılır.
     // Yoksa ateş altındaki canavar hiç ısıramıyordu.
     const cc = o.kind !== 'dart' && o.kind !== 'beam';
@@ -1669,6 +1874,11 @@ DG.mon = {
     ctx.globalCompositeOperation = 'lighter';
     if (dk > 0) eyes(ctx, m, dk*(inLight ? 0.4 : 1)*(awake ? 1 : 0.6));
     switch (m.t) {
+      case 'mine': {
+        const bl = Math.max(0, Math.sin(S.t*5 + m.seed*9));
+        glow(ctx, sx, m.y - 11*m.sc - cam.y, 14, '255,60,40', (0.25 + 0.6*dk)*bl);
+      } break;
+      case 'urchin': if (dk > 0) glow(ctx, sx, sy, 16*m.sc, '200,140,255', 0.18*dk*(0.7 + 0.3*Math.sin(S.t*2 + m.seed*7))); break;
       case 'jelly': if (dk > 0) {
         const p = wpt(m, 0, -6), pu = 0.75 + 0.25*Math.sin(m.ph*2.6);
         glow(ctx, p[0] - cam.x, p[1] - cam.y, 30*m.sc, P.glow, 0.34*dk*pu);
@@ -1753,6 +1963,7 @@ DG.mon = {
       const sx = m.x - cam.x; if (sx < -120 || sx > S.W + 120) continue;
       if (m.t === 'angler') { const ll = lureLocal(m), p = wpt(m, ll[0], ll[1]); out.push({x:p[0], y:p[1], r:(m.lureS ? 28 : 50)*Math.min(1.5, m.sc), k:0.5}); }
       else if (m.t === 'jelly') out.push({x:m.x, y:m.y, r:30*m.sc, k:0.26});
+      else if (m.t === 'mine' && Math.sin(S.t*5 + m.seed*9) > 0.3) out.push({x:m.x, y:m.y - 11, r:34, k:0.35});
       else if (m.t === 'guardian') { out.push({x:m.x, y:m.y, r:54*m.sc, k:clamp(0.22*m.rune, 0.1, 0.4)}); for (const o of m.orbs) out.push({x:o.x, y:o.y, r:46, k:0.6}); }
     }
     return out;

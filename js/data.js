@@ -16,43 +16,53 @@ DG.C = {
 
 const LAYERS = [
   {name:'Sığ Koy', top:0, bot:150, wall:46, rock:[52,46,38], water:[70,190,220], waterBot:[14,80,125], decor:'sand',
-    mons:[['jelly',0.05,1,2.0],['eel',0.2,1,1.2]],
+    mons:[['jelly',0.02,1,2.3],['jelly',0.02,0.35,2.8],['eel',0.03,1,1.5],['eel',0.03,0.35,1.8]],   // ilk ekipmanın indiği sığ kısım daha kalabalık
+    obst:[['urchin',0.04,1,0.9],['curtain',0.12,0.95,0.14]],
     items:[[I('Deniz kabuğu','shell','#f2c9a8'),I('Deniz yıldızı','star','#ff8a5c')],[I('Bakır sikke','coin','#d98a4b'),I('Kırık amfora','amphora','#c9774a')],[I('Bronz külçe','ingot','#c98b4a'),I('İnci','pearl','#f4f1ff')]],
     relic:{n:'Derinlerin Kalbi', s:'heart', c:'#5ad8ff', lore:'Balıkçıların masallarındaki mavi taş. İçinde parlayan çizgiler bir harita gibi: aşağıyı, mercan mağaralarını gösteriyor.', bonus:{k:'value', v:0.1}}},
   {name:'Mercan Mağaraları', top:150, bot:300, wall:120, rock:[70,62,58], waterBot:[8,52,92], decor:'cave',
-    mons:[['jelly',0,1,1.6],['eel',0,1,1.6],['shark',0.4,1,0.5]],
+    mons:[['jelly',0,1,1.8],['eel',0,1,1.8],['shark',0,1,0.5]],
+    obst:[['urchin',0,1,0.7],['curtain',0.35,0.95,0.09]],
     items:[[I('Doğal sünger','coral','#e8c45a'),I('Mor deniz yıldızı','star','#b07ae0')],[I('Bizans sikkesi','coin','#ffcf3a'),I('Kandil','amphora','#b98a5a')],[I('Bronz heykel başı','statue','#9fb38e'),I('Mermer kabartma','tablet','#e6e1d3')]],
     relic:{n:'Bronz Dişli Düzenek', s:'gear', c:'#d9a94f', lore:'İki bin yıllık bir hesap makinesi. Dişlileri hâlâ dönüyor ve hep aynı yeri gösteriyor: daha aşağıda yatan batıkları.', bonus:{k:'air', v:0.1}}},
   {name:'Batık Gemiler Koyu', top:300, bot:500, wall:60, rock:[30,40,38], waterBot:[6,36,62], decor:'oldwreck',
-    mons:[['eel',0,1,1.2],['shark',0,1,0.8],['mimic',0.3,1,0.5],['angler',0.5,1,0.6]],
+    mons:[['eel',0,1,1.4],['shark',0,1,0.9],['mimic',0.3,1,0.5],['angler',0.5,1,0.6]],
+    obst:[['mine',0.08,1,0.8],['urchin',0,0.6,0.4]],
     items:[[I('Ceneviz düğmesi','coin','#c0c8d0'),I('Kehribar','gem','#ffaa33')],[I('Gümüş kadeh','amphora','#d7e2ea'),I('Ceneviz dukası','coin','#ffd24a')],[I('Mühürlü sandık','chest','#8a5a2b'),I('Altın kolye','pearl','#ffcf3a')]],
     relic:{n:'Bin Yıllık Kaptan Defteri', s:'book', c:'#c9a46a', lore:'Tuzlu su onu bin yıl çürütmeden saklamış. Son sayfada tek bir cümle var: "Mühür, kızıl kanyonun dibinde."', bonus:{k:'bag', v:1}}},
   {name:'Kızıl Kanyon', top:500, bot:750, wall:200, rock:[96,52,40], waterBot:[26,20,38], decor:'canyon',
     mons:[['eel',0,1,1.6],['viper',0.2,1,0.5],['shark',0,1,0.8],['octopus',0.2,1,0.6]],
+    obst:[['urchin',0,1,0.6]],
     items:[[I('Kırmızı mercan','coral','#ff5a6e'),I('Kauri kabuğu','shell','#f5e6c8')],[I('Firavun boncuğu','gem','#3fc7e0'),I('Bakır ayna','coin','#e09a5b')],[I('Altın bok böceği','statue','#ffcf3a'),I('Lapis tablet','tablet','#3d5fc0')]],
     relic:{n:'Firavun Mührü', s:'tablet', c:'#ffd24a', lore:'Mührün üstüne aşağıya bakan bir göz kazınmış. Gözün altında yazı: "Işığın bittiği yerde pusula yolunu şaşırır."', bonus:{k:'value', v:0.1}}},
   {name:'Alacakaranlık Uçurumu', top:750, bot:1000, wall:70, rock:[40,48,58], waterBot:[6,16,34], decor:'plane',
     mons:[['viper',0,1,0.6],['shark',0,1,0.9],['angler',0.2,1,0.9],['squid',0.5,1,0.4],['mimic',0,1,0.3]],
+    obst:[['mine',0,1,0.35]],
     items:[[I('Fosforlu kabuk','shell','#7fffd0'),I('Pas tutmuş künye','tablet','#a08a70')],[I('İspanyol dublonu','coin','#ffcf3a'),I('Mesaj şişesi','bottle','#7fd8a0')],[I('Korsan sandığı','chest','#6b3f1f'),I('Zümrüt kolye','gem','#3fe0a0')]],
     relic:{n:'Kayıp Filo Pusulası', s:'compass', c:'#e0b060', lore:'İğnesi kuzeyi değil, aşağıyı gösteriyor. Gece bölgesinde bir noktada çıldırıyor.', bonus:{k:'dmg', v:0.1}}},
   {name:'Gece Bölgesi', top:1000, bot:1500, wall:80, rock:[34,40,48], waterBot:[3,9,22], decor:'steelwreck',
     mons:[['viper',0,1,0.7],['shark',0,1,1.0],['angler',0,1,0.9],['squid',0.3,1,0.6],['mimic',0,1,0.4]],
+    obst:[['mine',0,1,0.45]],
     items:[[I('Balina dişi','ingot','#efe8d8'),I('Pirinç lomboz','compass','#e0b060')],[I('Viking gümüşü','coin','#d7e2ea'),I('Gemi çanı','amphora','#d0a050')],[I('Viking sandığı','chest','#5b3a22'),I('Viking bileziği','crown','#ffd24a')]],
     relic:{n:'Kraken Gözü', s:'eye', c:'#ffcc33', lore:'Avuç kadar bir göz taşı. Karanlıkta ona bakınca sana geri bakıyor ve kristallerle dolu mağaraları gösteriyor.', bonus:{k:'light', v:0.15}}},
   {name:'Kristal Mağaralar', top:1500, bot:2200, wall:110, rock:[110,140,170], waterBot:[8,22,42], decor:'crystal',
     mons:[['jelly',0,1,1.2],['viper',0,1,0.8],['squid',0,1,0.7],['octopus',0,1,0.5],['serpent',0.5,1,0.3]],
+    obst:[['curtain',0.2,0.95,0.07]],
     items:[[I('Kuvars kristali','crystal','#bfe9ff'),I('Kutup yıldızı','star','#ff6f9a')],[I('Kaşif madalyası','coin','#d7e2ea'),I('Su geçirmez günlük','book','#8a7a6a')],[I('Mavi elmas','diamond','#7fd0ff'),I('Platin külçe','ingot','#e4e8ec')]],
     relic:{n:'Sonsuz Kristal', s:'diamond', c:'#bff4ff', lore:'Hiç sönmeyen bir kristal. İçinde ateş saçan bacaların haritası donmuş.', bonus:{k:'speed', v:0.1}}},
   {name:'Volkanik Bacalar', top:2200, bot:3000, wall:90, rock:[40,26,24], waterBot:[26,8,6], decor:'vents',
     mons:[['viper',0,1,1.0],['angler',0,1,1.0],['squid',0,1,0.7],['serpent',0.3,1,0.45]],
+    obst:[['vent',0.05,0.97,0.4]],
     items:[[I('Kükürt kristali','crystal','#f0e050'),I('Lav incisi','pearl','#ff7040')],[I('Obsidyen bıçak','gem','#2c2c38'),I('Manganez yumrusu','pearl','#5a4a44')],[I('Altın damarı','ingot','#ffcf3a'),I('Ateş opali','diamond','#ff8040')]],
     relic:{n:'Poseidon\'un Mızrak Ucu', s:'spear', c:'#ffd24a', lore:'Üç uçlu, sıcak, titreşen bir metal. Kırık ucunda batık bir yolcu gemisinin adı kazılı.', bonus:{k:'wdmg', v:0.5}}},
   {name:'Kayıp Gemiler Mezarlığı', top:3000, bot:3800, wall:70, rock:[30,34,40], waterBot:[3,6,12], decor:'liner',
     mons:[['jelly',0,1,1.0],['shark',0,1,1.1],['squid',0,1,0.8],['serpent',0.3,1,0.55],['mimic',0,1,0.5]],
+    obst:[['mine',0,1,0.35],['curtain',0.3,0.95,0.05]],
     items:[[I('Porselen fincan','amphora','#f4f1ea'),I('Yolcu bileti','tablet','#e6d7b8')],[I('Altın cep saati','watch','#ffcf3a'),I('Gümüş servis','coin','#d7e2ea')],[I('Mücevher kutusu','chest','#8a1f2b'),I('Elmas kolye','diamond','#e8f6ff')]],
     relic:{n:'Kayıp Geminin Cep Saati', s:'watch', c:'#ffd86a', lore:'Saat 02.20\'de durmuş. Kapağının içine kazınmış: "Kalbin yolu en derin çukurdan geçer."', bonus:{k:'air', v:0.1}}},
   {name:'Kalipso Çukuru', top:3800, bot:5267, wall:300, rock:[22,24,30], waterBot:[1,2,6], decor:'trench',
     mons:[['viper',0,1,1.0],['angler',0,1,1.0],['squid',0,1,0.9],['serpent',0.2,1,0.65],['octopus',0,1,0.5]],
+    obst:[['vent',0.3,0.97,0.15]],
     items:[[I('Cam süngeri','coral','#d8f0ff'),I('Işıklı kabuk','shell','#60ffd0')],[I('Meteor parçası','ingot','#4a4a55'),I('Yıldız tozu','crystal','#b08aff')],[I('Siyah elmas','diamond','#55556a'),I('Garip küre','pearl','#c28aff')]],
     relic:{n:'Kalipso İncisi', s:'pearl', c:'#f2f6ff', lore:'Akdeniz\'in en derin noktasından. İncinin içinde bir kapı çizili; çukurun dibindeki çatlaktan mavi bir ışık sızıyor. Atlantis gerçek.', bonus:{k:'value', v:0.2}}},
   {name:'Atlantis', top:5267, bot:6500, wall:140, rock:[30,40,70], waterBot:[8,18,60], decor:'atlantis',
@@ -87,6 +97,7 @@ const GEAR = {
 };
 
 // Canavarlar. dmg: o katın referans tüpünün kesri (sn hava). hp: temel can, katla büyür.
+// Kat başına: mons = [[tip, f0, f1, 1000 px başına yoğunluk]], obst = engeller (urchin, mine, vent, curtain: denizanası perdesi, 1000 px başına perde).
 const MON = {
   jelly:   {n:'Denizanası',        hp:1, dmg:0.07, bounty:2,  r:16},
   eel:     {n:'Murena',            hp:2, dmg:0.10, bounty:4,  r:12},
@@ -98,6 +109,10 @@ const MON = {
   guardian:{n:'Atlantis bekçisi',  hp:6, dmg:0.22, bounty:30, r:24, spd:1.0,  aggro:360, eye:'#5af0ff'},
   mimic:   {n:'Sandık taklitçisi', hp:4, dmg:0.18, bounty:14, r:18, spd:0.9,  aggro:90,  eye:'#ff5a3a', mimic:true},
   octopus: {n:'Taklitçi ahtapot',  hp:4, dmg:0.12, bounty:10, r:22, spd:0.6,  aggro:130, eye:'#ffcf3a', mimic:true},
+  // Engelleyici unsurlar (kıpırdamaz). Kestane ve mayın vurulabilir, kat listesine sayılır; baca kırılmaz, sayılmaz.
+  urchin:  {n:'Deniz kestanesi',   hp:1.6, dmg:0.06, bounty:1, r:15, obst:true},
+  mine:    {n:'Eski deniz mayını', hp:0.6, dmg:0.28, bounty:3, r:14, obst:true, blast:115},
+  vent:    {n:'Kızgın baca',       hp:0,   dmg:0.10, bounty:0, r:0,  obst:true, hazard:true},
 };
 
 // Silahlar: hepsi sınırsız, sadece dolum süresi var. Seviye 0..3, hasar x(1 + 0.5*seviye).

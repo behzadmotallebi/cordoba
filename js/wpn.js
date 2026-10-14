@@ -682,7 +682,8 @@ function drawHeld(ctx){
   ctx.save();
   heldXform(ctx);
   if (camoT > 0) ctx.globalAlpha = 0.35;
-  drawWeaponShape(ctx, w.id, ready, p);
+  // Boyalı silah sprite'ı (wpn_<id>) varsa onu çiz, yoksa prosedürel şekil.
+  if (!(DG.art && DG.art.weapon && DG.art.weapon(ctx, w.id, ready, p))) drawWeaponShape(ctx, w.id, ready, p);
   ctx.restore();
 }
 function drawReticle(ctx){
