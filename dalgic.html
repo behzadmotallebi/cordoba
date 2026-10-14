@@ -118,6 +118,8 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .facts span{border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12px;color:var(--foam)}
 .go{background:var(--amber);color:var(--ink);border:0;border-radius:999px;padding:14px 34px;font-size:18px;letter-spacing:.05em}
 .small{font-size:12px!important}
+.demo{background:transparent;color:var(--amber);border:1px dashed var(--amber);border-radius:999px;padding:8px 16px;font-size:12px;letter-spacing:.08em}
+.demo[aria-pressed="false"]{color:var(--dim);border-color:var(--line)}
 .stats{display:flex;gap:18px;justify-content:center;flex-wrap:wrap}
 .stats div{display:flex;flex-direction:column}
 .stats b{font-size:22px;color:var(--amber);font-variant-numeric:tabular-nums}
@@ -178,6 +180,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <p>Dal, hazine topla, havan bitmeden tekneye dön. Dükkânı doldur, yeni gemini al, bir sonraki denize yelken aç.</p>
     <p class="lore">11 deniz, 11 eser. Kaş Koyu'ndan Mariana Çukuru'na, oradan da kimsenin dönmediği yere: Atlantis.</p>
     <button class="go" id="startBtn" type="button">Dalışa başla</button>
+    <button class="demo" id="demoBtn" type="button" aria-pressed="true">DEMO AÇIK · sınırsız para</button>
     <p class="small">Telefonda: parmağını basılı tut, yüzmek istediğin yöne sürükle.<br>Bilgisayarda: ok tuşları ya da WASD. Boşluk: zıpkın, F: fişek, E: yukarı çık.</p>
   </div>
 </div>
@@ -222,7 +225,12 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 (() => {
 'use strict';
 const WORLD_W = 1400;
-const SAVE_KEY = 'dalgic-save-v2', OLD_KEY = 'dalgic-save-v1';
+const SAVE_KEY = 'dalgic-save-v2', OLD_KEY = 'dalgic-save-v1', DEMO_SAVE_KEY = 'dalgic-save-demo', DEMO_FLAG = 'dalgic-demo';
+let demo = true;
+try { demo = localStorage.getItem(DEMO_FLAG) !== '0'; } catch (e) {}
+const saveKey = () => demo ? DEMO_SAVE_KEY : SAVE_KEY;
+const canAfford = c => demo || save.money >= c;
+const spend = c => { if (!demo) save.money -= c; };
 const TRACKS = ['tank','speed','bag','light','suit','armor'];
 const TRACK_LABEL = {tank:'HAVA', speed:'HIZ', bag:'ÇANTA', light:'IŞIK', suit:'DERİNLİK', armor:'KORUMA'};
 const TRACK_W = {tank:1, speed:1, bag:1.1, light:0.8, suit:1.2, armor:0.9};
@@ -380,9 +388,9 @@ function nice(n){
 
 function load(){
   try {
-    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    const s = JSON.parse(localStorage.getItem(saveKey()) || 'null');
     if (s && s.v === 2) { mergeSave(s); return; }
-    if (localStorage.getItem(OLD_KEY)) { welcomeBonus = true; save.money = 300; }
+    if (!demo && localStorage.getItem(OLD_KEY)) { welcomeBonus = true; save.money = 300; }
   } catch (e) {}
 }
 function mergeSave(s){
@@ -395,7 +403,7 @@ function mergeSave(s){
   save.stage = clamp(save.stage|0, 1, NSTAGE);
   for (const k of TRACKS) save.lv[k] = clamp(save.lv[k]|0, 0, 3);
 }
-function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+function persist(){ try { localStorage.setItem(saveKey(), JSON.stringify(save)); } catch (e) {} }
 
 // ---------- derived stats ----------
 function relicMods(){
@@ -571,10 +579,10 @@ const anyOverlay = () => !$('intro').hidden || !$('stageCard').hidden || !$('rel
 
 function gearDone(){ return TRACKS.every(k => save.lv[k] >= 3); }
 function relicDone(){ return save.relics.includes(SI()); }
-function shipReady(){ return SI() < NSTAGE - 1 && gearDone() && relicDone() && save.money >= shipCost(); }
+function shipReady(){ return SI() < NSTAGE - 1 && gearDone() && relicDone() && canAfford(shipCost()); }
 function affordableCount(){
   let n = 0;
-  for (const k of TRACKS) { const lv = save.lv[k]; if (lv < 3 && save.money >= upCost(k, lv + 1)) n++; }
+  for (const k of TRACKS) { const lv = save.lv[k]; if (lv < 3 && canAfford(upCost(k, lv + 1))) n++; }
   return n;
 }
 
@@ -601,10 +609,10 @@ function renderShop(){
       const b = el('button', 'buy'); b.type = 'button'; b.id = 'buy-' + k;
       if (lv >= 3) { b.textContent = 'Tamam'; b.disabled = true; }
       else {
-        const c = upCost(k, lv + 1); b.textContent = fmtMoney(c); b.disabled = save.money < c;
+        const c = upCost(k, lv + 1); b.textContent = fmtMoney(c); b.disabled = !canAfford(c);
         b.addEventListener('click', () => {
-          if (save.money < c || save.lv[k] >= 3) return;
-          save.money -= c; save.lv[k]++;
+          if (!canAfford(c) || save.lv[k] >= 3) return;
+          spend(c); save.lv[k]++;
           if (k === 'tank') o2 = gTank();
           sfx('buy'); persist(); renderShop(); updateShopBtn();
           msg(GEAR[k][SI()] + ' yükseltildi', 'var(--amber)');
@@ -624,10 +632,10 @@ function renderShop(){
       if (locked) { b.textContent = 'Kilitli'; b.disabled = true; }
       else if (full) { b.textContent = 'Dolu'; b.disabled = true; }
       else {
-        b.textContent = fmtMoney(price); b.disabled = save.money < price;
+        b.textContent = fmtMoney(price); b.disabled = !canAfford(price);
         b.addEventListener('click', () => {
-          if (save.money < price || save.inv[k] >= c.max) return;
-          save.money -= price; save.inv[k] = Math.min(c.max, save.inv[k] + c.pack);
+          if (!canAfford(price) || save.inv[k] >= c.max) return;
+          spend(price); save.inv[k] = Math.min(c.max, save.inv[k] + c.pack);
           sfx('buy'); persist(); renderShop(); updateActions(); updateShopBtn();
         });
       }
@@ -648,7 +656,7 @@ function renderShop(){
       const reqs = [
         ['Dükkânı doldur (' + doneTracks + '/' + TRACKS.length + ')', gearDone()],
         ['Dipteki eseri tekneye getir: ' + (relicDone() ? ST().relic.n : '???'), relicDone()],
-        ['Gemi parası: ' + fmtMoney(cost), save.money >= cost],
+        ['Gemi parası: ' + fmtMoney(cost), canAfford(cost)],
       ];
       for (const [txt, ok] of reqs) { const li = el('li', ok ? 'ok' : ''); li.appendChild(el('span', null, txt)); li.appendChild(el('b', null, ok ? '✓' : '✗')); ul.appendChild(li); }
       card.appendChild(ul);
@@ -686,7 +694,7 @@ function bonusText(b){
 }
 function buyShip(){
   if (!shipReady()) return;
-  save.money -= shipCost();
+  spend(shipCost());
   save.stage++;
   for (const k of TRACKS) save.lv[k] = 0;
   bag = []; bagBonus = 0; relicHeld = false; diving = false; ascending = false;
@@ -713,6 +721,22 @@ function showStageCard(){
 for (const k of ['gear','cons','ship','relic']) $('tab-' + k).addEventListener('click', () => { shopTab = k; renderShop(); });
 $('shopBtn').addEventListener('click', () => { shopTab = shipReady() ? 'ship' : shopTab; renderShop(); $('shop').hidden = false; });
 $('shopClose').addEventListener('click', () => { $('shop').hidden = true; });
+function syncDemoBtn(){
+  const b = $('demoBtn');
+  b.setAttribute('aria-pressed', String(demo));
+  b.textContent = demo ? 'DEMO AÇIK · sınırsız para' : 'DEMO KAPALI · gerçek oyun';
+  $('startBtn').textContent = (save.dives > 0 || save.stage > 1) ? 'Devam et' : 'Dalışa başla';
+}
+$('demoBtn').addEventListener('click', () => {
+  demo = !demo;
+  try { localStorage.setItem(DEMO_FLAG, demo ? '1' : '0'); } catch (e) {}
+  Object.assign(save, defaultSave());
+  welcomeBonus = false;
+  load();
+  setupStage();
+  resetToBoat();
+  syncDemoBtn();
+});
 $('startBtn').addEventListener('click', () => {
   audio(); $('intro').hidden = true;
   if (save.seenStage < save.stage) showStageCard(); else playing = true;
@@ -1019,7 +1043,7 @@ function update(dt){
   $('hAir').textContent = Math.round(frac*200);
   $('hAirFill').style.width = (frac*100) + '%';
   $('hAirBox').classList.toggle('low', frac < 0.25 && !atSurface);
-  $('hMoney').textContent = fmtMoney(save.money);
+  $('hMoney').textContent = demo ? '₺∞ DEMO' : fmtMoney(save.money);
   $('hBest').textContent = Math.round(save.best['s' + save.stage] || 0).toLocaleString('tr-TR');
   $('hStage').textContent = 'SEFER ' + save.stage + '/' + NSTAGE + ' · ' + st.name.toLocaleUpperCase('tr-TR');
   updateActions();
@@ -1664,6 +1688,7 @@ function start(data){
   $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK';
   if (data && data.playing) { $('intro').hidden = true; playing = true; }
   else if (save.dives > 0 || save.stage > 1) $('startBtn').textContent = 'Devam et';
+  syncDemoBtn();
   cam.y = -H*0.3;
   updateShopBtn();
   requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
