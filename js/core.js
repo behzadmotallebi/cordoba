@@ -17,8 +17,8 @@ const lerp = (a, b, k) => a + (b - a)*k;
 const mix = (c1, c2, k) => c1.map((v, i) => lerp(v, c2[i], k));
 
 // ---------- dünya geometrisi ----------
-// Kat yüksekliği (px). Tam ekipmanla bir katı baştan dibe inmek ~45-55 sn (dövüş ve kaçışla 60-90 sn).
-const LH = i => 13000 + 2000*i;
+// Kat yüksekliği (px). Tam ekipmanla bir katı baştan dibe inmek ~27-33 sn (dövüş ve kaçışla 35-55 sn).
+const LH = i => 7800 + 1200*i;
 const LTOP = []; let WORLD_H = 0;
 for (let i = 0; i < NL; i++) { LTOP.push(WORLD_H); WORLD_H += LH(i); }
 const LBOT = i => LTOP[i] + LH(i);
