@@ -121,7 +121,9 @@ let activeId = lsGet(P_ACTIVE);
 if (!profiles.some(p => p.id === activeId)) activeId = profiles.length ? byRecent()[0].id : null;
 const prof = () => profiles.find(p => p.id === activeId) || null;
 const persistIndex = () => lsSet(P_INDEX, JSON.stringify(profiles));
-let demo = lsGet(DEMO_FLAG) !== '0';
+// Sınırsız para (demo) sadece geliştirici modunda: adresin sonuna #dev eklenince. Oyuncu hep gerçek ekonomiyle oynar.
+const DEV = location.hash === '#dev';
+let demo = DEV && lsGet(DEMO_FLAG) === '1';
 // Kaptan yokken (ilk açılış) aktarılmamış eski kayıt okunur ki giriş "Devam et" desin; ama hiçbir şey yazılmaz.
 const saveKey = () => activeId ? pKey(activeId) + (demo ? '.demo' : '') : lsGet(P_MIGRATED) ? null : (demo ? LEGACY_DEMO_KEY : LEGACY_KEY);
 const canAfford = c => demo || save.money >= c;
@@ -1053,7 +1055,7 @@ $('endBtn').addEventListener('click', () => { $('endCard').hidden = true; save.e
 $('eTeaser').addEventListener('click', () => { $('endCard').hidden = true; playTeaser(() => { $('endCard').hidden = false; }); });
 $('muteBtn').addEventListener('click', e => { e.currentTarget.blur(); save.muted = !save.muted; $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK'; persist(); if (!save.muted) sfx('buy'); });
 function syncDemoBtn(){
-  const b = $('demoBtn'); b.setAttribute('aria-pressed', String(demo));
+  const b = $('demoBtn'); b.hidden = !DEV; b.setAttribute('aria-pressed', String(demo));
   b.textContent = demo ? 'DEMO AÇIK · sınırsız para' : 'DEMO KAPALI · gerçek oyun';
   $('startBtn').textContent = (save.dives > 0 || save.tier > 0) ? 'Devam et' : 'Dalışa başla';
   syncProfile();
