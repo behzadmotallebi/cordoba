@@ -1658,8 +1658,11 @@ DG.mon = {
   // Katın sabit canavar listesi: kat ve Yeni Sefer+ turuyla tohumlanır, her çağrıda aynı sırayla aynı canavarlar.
   // Her canavara m.rid (liste sırası) verilir; çekirdek öldürülenleri kayıtta tutar ve bir daha yaratmaz.
   spawnLayer(L, seed){
-    // MON_K: canavar yoğunluğu çarpanı (engeller hariç).
-    const out = [], ly = LAYERS[L], dens = 1 + 0.08*L, h = DG.U.LH(L), U = DG.U, MON_K = 1.5;
+    // Canavar sayısı (engeller ve bekçiler hariç) hedefe göre ölçeklenir: ilk katta ~120, her katta %15 fazla.
+    // Kat tablosundaki oranlar (hangi tür, katın neresinde) korunur.
+    const out = [], ly = LAYERS[L], dens = 1 + 0.08*L, h = DG.U.LH(L), U = DG.U;
+    let base = 0; for (const [t, f0, f1, per] of ly.mons) if (MON[t]) base += per*dens*(f1 - f0)*h/1000;
+    const MON_K = base > 0 ? 120*Math.pow(1.15, L)/base : 1;
     const R0 = Math.random;
     Math.random = seeded(seed != null ? seed : L*7919 + 17);
     try {

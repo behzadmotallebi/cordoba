@@ -10,7 +10,7 @@ Kütüphane yok, dış dosya yok, sadece Canvas 2D. Hedef: orta seviye telefonda
 ## Koordinatlar ve çizim
 
 - Dünya koordinatı: x ∈ [0, 1400], y = 0 deniz yüzeyi, aşağı doğru artar, `DG.S.worldH` (~253.000 px) en dip.
-  Kat yüksekliği `LH(i) = 7800 + 1200*i` px (kat 0: 7.800, kat 10: 19.800). Metreler (`LAYERS[i].top/bot`) değişmedi; karanlık metreye göre.
+  Kat yüksekliği `LH(i) = 3900*1.3^i` px (kat 0: 3.900, kat 10: ~53.800). Metreler (`LAYERS[i].top/bot`) değişmedi; karanlık metreye göre.
   Dalgıç hızı `150*1.12^kat*KM.speed` (canavarlar da `1.12^kat`): tam ekipmanla bir katı baştan dibe inmek ~45-55 sn, toplayarak ve dövüşerek 60-90 sn.
 - Karanlık katmanı yarım çözünürlükte çizilip büyütülür (yumuşak degrade, dolum maliyeti düşük); `lights()` delikleri de öyle.
 - Ekran = dünya − kamera: `sx = x - DG.S.cam.x`, `sy = y - DG.S.cam.y`. Ekran boyutu `DG.S.W` × `DG.S.H` (CSS px).
