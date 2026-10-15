@@ -38,7 +38,7 @@ let aimAng = 0, aimTgt = null, aimLock = 0, hitSndT = 0, shotN = 0, camoHint = f
 const darts = [], nets = [], torps = [], rings = [], blasts = [], sparks = [], puffs = [], stuck = [], bolts = [], ghosts = [], flashes = [];
 const flares = [];
 const beam = {on:false, k:0, a:0, x0:0, y0:0, x1:0, y1:0, tick:0, zap:0, hits:[]};
-let dashT = 0, dashDur = 0.35, ghostT = 0, shockT = 0, shockDur = 1.6, shockTick = 0, sonarT = 0, camoT = 0, camoDur = 4.5;
+let dashT = 0, dashDur = 0.35, ghostT = 0, shockT = 0, shockDur = 1.6, shockTick = 0, sonarT = 0, camoT = 0, camoDur = 4.5, comboT = 0, comboDur = 6;
 const near = []; let bossT = [];
 const nudge = {x:0, y:0};
 const shove = (x, y) => { nudge.x += x; nudge.y += y; };
@@ -729,7 +729,17 @@ DG.wpn = {
       if (w.kind === 'beam') beamWant = swapT <= 0;
       else if ((cds[w.id] || 0) <= 0 && swapT <= 0) fire(w, lv, want);
     }
-    updateBeam(dt, beamWant, w, lv, want);
+    // Kombo: sahip olunan bütün silahlar kendi dolum sürelerinde kendiliğinden ateş eder; üç dişli ışını da açık kalır.
+    let bw = w, blv = lv;
+    if (comboT > 0) {
+      comboT -= dt;
+      if (canFire) for (const w2 of DG.data.WEAPONS) {
+        if (save.wpn[w2.id] == null) continue;
+        if (w2.kind === 'beam') { beamWant = true; bw = w2; blv = save.wpn[w2.id] || 0; continue; }
+        if ((cds[w2.id] || 0) <= 0) fire(w2, save.wpn[w2.id] || 0, want);
+      }
+    }
+    updateBeam(dt, beamWant, bw, blv, want);
     updateDarts(dt);
     updateNets(dt);
     updateTorps(dt);
@@ -816,6 +826,14 @@ DG.wpn = {
         sfx('sonar');
         break;
       }
+      case 'combo': {
+        comboDur = (s.dur || 6)*(1 + 0.25*lv); comboT = comboDur;
+        rings.push({x:d.x, y:d.y, r0:14, r1:120, t:0, dur:0.4, c:'255,207,90', w:3});
+        spark(d.x, d.y, 18, 320, '255,207,90');
+        sfx('relic'); buzz([40, 30, 80]);
+        if (DG.core.msg) DG.core.msg('KOMBO! Bütün silahlar ateşte.', 'var(--brass-hi)');
+        break;
+      }
       case 'camo': {
         camoDur = s.dur || 4.5; camoT = camoDur;
         rings.push({x:d.x, y:d.y, r0:60, r1:14, t:0, dur:0.35, c:'150,255,220', w:1.6});
@@ -837,6 +855,7 @@ DG.wpn = {
       case 'flare': active = flares.length > 0; break;
       case 'sonar': active = sonarT > 0; break;
       case 'camo': active = camoT > 0; break;
+      case 'combo': active = comboT > 0; break;
       case 'lift': active = !!(DG.S && DG.S.lifting); break;
     }
     return {frac:left > 0 ? clamp(left/mx, 0, 1) : 0, active};
@@ -862,7 +881,7 @@ DG.wpn = {
   aimTarget(){ return aimTgt; },
   reset(){
     for (const a of [darts, nets, torps, rings, blasts, sparks, puffs, stuck, bolts, ghosts, flashes, flares]) a.length = 0;
-    beam.on = false; beam.k = 0; dashT = shockT = sonarT = camoT = 0; aimTgt = null; dmgAcc.clear();
+    beam.on = false; beam.k = 0; dashT = shockT = sonarT = camoT = comboT = 0; aimTgt = null; dmgAcc.clear();
   },
 
   // Dalgıcın arkasına: hız patlaması izleri.
@@ -1143,6 +1162,12 @@ DG.wpn = {
       ctx.strokeStyle = `rgba(160,235,255,${0.4*k})`; ctx.lineWidth = 1.2; ctx.beginPath();
       for (let i = -1; i <= 1; i++) { const ox = -uy*i*8, oy = ux*i*8, l = 40 + 20*Math.random(); ctx.moveTo(dsx + ox - ux*14, dsy + oy - uy*14); ctx.lineTo(dsx + ox - ux*(14 + l), dsy + oy - uy*(14 + l)); }
       ctx.stroke();
+    }
+    // kombo: dalgıcın çevresinde dönen altın halka
+    if (comboT > 0) {
+      const k = Math.min(1, comboT/0.4)*(0.6 + 0.4*Math.sin(time*18));
+      ctx.strokeStyle = `rgba(255,207,90,${0.55*k})`; ctx.lineWidth = 2.4;
+      for (let i = 0; i < 3; i++) { const a0 = time*5 + i*TAU/3; ctx.beginPath(); ctx.arc(dsx, dsy, 34, a0, a0 + 1.1); ctx.stroke(); }
     }
     // kamuflaj: suyu büken titrek bir kabuk
     if (camoT > 0) {

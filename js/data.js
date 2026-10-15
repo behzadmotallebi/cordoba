@@ -134,6 +134,7 @@ const SKILLS = [
   {id:'flare', n:'İşaret fişeği',    unlock:2, cd:14, dur:12, d:'Karanlığı aydınlatır, canavarları kaçırır.'},
   {id:'sonar', n:'Sonar',            unlock:3, cd:12, dur:6,  d:'Hazineleri, eseri ve kılık değiştirmiş canavarları gösterir.'},
   {id:'camo',  n:'Kamuflaj',         unlock:5, cd:22, dur:4.5, d:'Canavarlar seni birkaç saniye göremez.'},
+  {id:'combo', n:'Kombo',            unlock:6, cd:40, dur:6, d:'Bütün silahların aynı anda ateş eder, her biri kendi atış hızında. Derin katların en güçlü silahı.'},
 ];
 
 const CONS = {

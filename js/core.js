@@ -281,7 +281,8 @@ const elevCostAt = t => nice(2600*Math.pow(3.5, t)*(1 + 0.25*t));
 const ngCost = () => nice(2600*Math.pow(3.5, NL - 1)*(1 + 0.25*(NL - 1))*(1 + save.ng));
 const consPrice = k => nice(priceUnit(save.tier)*CONS[k].price);
 const wpnCost = (w, lvl) => nice(priceUnit(w.unlock)*D.WPN_COST[lvl]);
-const skillCost = (s, lvl) => nice(priceUnit(s.unlock)*D.SKILL_COST[lvl]);
+// Kombo en pahalı yetenek: normal yeteneğin 4 katı.
+const skillCost = (s, lvl) => nice(priceUnit(s.unlock)*D.SKILL_COST[lvl]*(s.id === 'combo' ? 4 : 1));
 const refTank = L => tankAt(L, 1);
 function fmtMoney(n){
   n = Math.round(n);
@@ -428,7 +429,7 @@ function shopTotal(L){
   let t = 0;
   for (const k of TRACKS) t += u*TRACK_W[k]*(STEP_COST[1] + STEP_COST[2] + STEP_COST[3]);
   for (const w of WEAPONS) if (w.unlock === L && w.id !== 'spear') t += priceUnit(w.unlock)*D.WPN_COST.reduce((a, b) => a + b, 0);
-  for (const sk of SKILLS) if (sk.unlock === L && sk.id !== 'dash') t += priceUnit(sk.unlock)*D.SKILL_COST.reduce((a, b) => a + b, 0);
+  for (const sk of SKILLS) if (sk.unlock === L && sk.id !== 'dash') t += priceUnit(sk.unlock)*D.SKILL_COST.reduce((a, b) => a + b, 0)*(sk.id === 'combo' ? 4 : 1);
   return t;
 }
 // Katın hazinelerinin toplam değeri = dükkân toplamı x 2,2 (canavar ödülleri ayrıca); gizem: dükkân toplamı kadar, tek seferde.
@@ -754,6 +755,7 @@ const GLYPH = {
   flare:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/><circle cx="12" cy="12" r="2.5"/>',
   sonar:'<circle cx="12" cy="12" r="2"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15"/>',
   camo:'<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4"/>',
+  combo:'<path d="M3 8h11M3 12h14M3 16h11"/><path d="M14 5l7 7-7 7"/>',
   spareTank:'<rect x="5" y="6" width="8" height="15" rx="4"/><path d="M7.5 6V3.5h3V6M18 6v8M14 10h8"/>',
   spareBag:'<path d="M3 10h12l-1.4 10H4.4z"/><path d="M6.5 10V8a2.5 2.5 0 0 1 5 0v2M19 4v8M15 8h8"/>',
 };
@@ -1812,7 +1814,7 @@ function updateCtx(){
   const n = affordableCount(), b = $('shopBadge'); b.hidden = n === 0; b.textContent = n;
   $('elevBtn').classList.toggle('ready', elevReady());
 }
-const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', camo:'KAMUFLAJ'};
+const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', camo:'KAMUFLAJ', combo:'KOMBO'};
 function updateControls(){
   if (pickT > 0) { pickT -= S.dt; if (pickT <= 0) closePick(); }
   // İstasyonda düğme kümesi gizlenir: altında kalan Dükkân/Asansör düğmelerine basılabilsin.
