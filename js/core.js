@@ -255,7 +255,6 @@ const priceUnit = t => 15*Math.pow(3.5, t)*(1 + 0.25*t);
 function nice(n){ if (n < 100) return Math.max(1, Math.round(n)); const p = Math.pow(10, Math.floor(Math.log10(n)) - 1); return Math.round(n/p)*p; }
 const upCost = (k, lvl) => nice(priceUnit(save.tier)*TRACK_W[k]*STEP_COST[lvl]);
 const elevCostAt = t => nice(2600*Math.pow(3.5, t)*(1 + 0.25*t));
-const elevCost = () => elevCostAt(save.tier);
 const ngCost = () => nice(2600*Math.pow(3.5, NL - 1)*(1 + 0.25*(NL - 1))*(1 + save.ng));
 const consPrice = k => nice(priceUnit(save.tier)*CONS[k].price);
 const wpnCost = (w, lvl) => nice(priceUnit(w.unlock)*D.WPN_COST[lvl]);
@@ -697,14 +696,15 @@ function statLine(k, lv, max){
 }
 const gearDone = () => TRACKS.every(k => save.lv[k] >= 3);
 const relicDone = () => save.relics.includes(save.tier);
-const elevReady = () => save.tier < NL - 1 && gearDone() && relicDone() && canAfford(elevCost());
+// Yeni kat ücretsiz: şartlar ekipman ve eser. (elevCostAt kat temizleme ödülünün ölçüsü olarak kalır.)
+const elevReady = () => save.tier < NL - 1 && gearDone() && relicDone();
 function affordableCount(){
   let n = 0;
   for (const k of TRACKS) { const lv = save.lv[k]; if (lv < 3 && canAfford(upCost(k, lv + 1))) n++; }
   return n;
 }
 function bought(){ sfx('buy'); persist(); renderShop(); updateCtx(); }
-// Dükkânın üstündeki hedef şeridi: yeni kat için üç şart tek bakışta.
+// Dükkânın üstündeki hedef şeridi: yeni kat için iki şart (ekipman, eser) tek bakışta.
 function goalStrip(){
   const box = el('div', 'goalstrip');
   if (save.tier >= NL - 1) {
@@ -713,11 +713,10 @@ function goalStrip(){
     else { box.appendChild(chip('Atlantis\'in Kalbi', save.relics.includes(NL - 1))); box.appendChild(chip('Final', false)); }
     return box;
   }
-  const done = TRACKS.filter(k => save.lv[k] >= 3).length, c = elevCost();
+  const done = TRACKS.filter(k => save.lv[k] >= 3).length;
   box.appendChild(el('span', 'gl', 'Yeni kat için:'));
   box.appendChild(chip('Ekipman ' + done + '/' + TRACKS.length, done === TRACKS.length));
   box.appendChild(chip('Eser', relicDone()));
-  box.appendChild(chip(canAfford(c) ? 'Para' : 'Para ' + fmtMoney(c - save.money) + ' eksik', canAfford(c)));
   return box;
 }
 function chip(txt, ok){ const c = el('span', 'chip' + (ok ? ' ok' : '')); c.appendChild(el('i', null, ok ? '✓' : '✗')); c.appendChild(document.createTextNode(txt)); return c; }
@@ -892,13 +891,13 @@ sheetSwipe($('profSheet'), () => closeProfiles());
 
 // ---------- asansör ----------
 // Dikey kuyu haritası: tekne en üstte, 11 kat sırayla. Açık istasyona tek dokunuşla gidilir;
-// sıradaki kilitli kat büyük bir kartla, açmak için gereken üç şartı gösterir.
+// sıradaki kilitli kat büyük bir kartla, açmak için gereken iki şartı gösterir.
 function rosterTxt(L){
   if (L > save.tier || !rosterN[L]) return null;
   return save.cleared.includes(L) ? 'Temizlendi' : leftN(L) + '/' + rosterN[L];
 }
 function needCard(){
-  const n = save.tier + 1, cost = elevCost(), card = el('div', 'needcard');
+  const n = save.tier + 1, card = el('div', 'needcard');
   card.appendChild(el('span', 'lbl', 'SIRADAKİ KAT · ' + fmtM(LAYERS[n].top) + '–' + fmtM(LAYERS[n].bot)));
   card.appendChild(el('h3', null, LAYERS[n].name));
   card.appendChild(el('p', null, 'Açınca asansör ' + fmtM(LAYERS[n].top) + '\'ye iner, gemin ' + SHIPS[n].n + ' olur ve dükkâna yeni ekipman gelir. Ekipman seviyeleri yeni katta baştan başlar.'));
@@ -916,19 +915,13 @@ function needCard(){
   r.appendChild(rt);
   if (!relicDone()) r.appendChild(el('small', null, 'Eser ' + LAYERS[save.tier].name + ' katının en dibinde, bir rafın üstünde parlıyor. Yanında bekçiler var.'));
   ul.appendChild(r);
-  // 3) para
-  const ok = canAfford(cost), p = el('li', ok ? 'ok' : ''), pt = el('div', 'rq');
-  pt.appendChild(el('i', 'mk', ok ? '✓' : '3')); pt.appendChild(el('span', null, 'Asansör parası')); pt.appendChild(el('b', null, fmtMoney(cost)));
-  p.appendChild(pt);
-  if (!ok) { const mm = el('div', 'minis one'), s = el('span', 'mini'), f = el('i'); f.style.width = Math.round(clamp(save.money/cost, 0, 1)*100) + '%'; s.appendChild(f); mm.appendChild(s); p.appendChild(mm); p.appendChild(el('small', null, fmtMoney(cost - save.money) + ' eksik')); }
-  ul.appendChild(p);
   card.appendChild(ul);
   card.appendChild(btn('Asansörü indir', 'bigbuy', elevReady(), buildElevator, 'buildElev'));
   return card;
 }
 function renderElev(){
   const body = $('elevBody'); body.innerHTML = '';
-  body.appendChild(el('p', 'helper', 'Açtığın istasyonlar arasında anında git. Yeni kat açmak için 3 şartı tamamla.'));
+  body.appendChild(el('p', 'helper', 'Açtığın istasyonlar arasında anında git. Yeni kat ücretsiz: ekipmanı tamamla ve katın eserini getir.'));
   const shaft = el('div', 'shaft');
   // tekne
   const here0 = curStationZone === 0;
@@ -1003,7 +996,6 @@ function newGamePlus(){
 }
 function buildElevator(){
   if (!elevReady()) return;
-  spend(elevCost());
   save.tier++;
   for (const k of TRACKS) save.lv[k] = 0;
   mods = relicMods(); generate(); addLayerMons(save.tier); persist();
@@ -1066,7 +1058,7 @@ function rideTo(s){
 function relicCard(L){
   const r = LAYERS[L].relic;
   $('rcName').textContent = r.n; $('rcLore').textContent = r.lore; $('rcBonus').textContent = bonusText(r.bonus);
-  $('rcNext').textContent = L === NL - 1 ? '' : !gearDone() ? 'Ekipmanı tamamlayınca asansörden yeni katı açabilirsin.' : canAfford(elevCost()) ? 'Ekipman da tamam. Asansörden yeni katı açabilirsin.' : 'Ekipman tamam. Asansör için ' + fmtMoney(elevCost()) + ' biriktir.';
+  $('rcNext').textContent = L === NL - 1 ? '' : !gearDone() ? 'Ekipmanı tamamlayınca asansörden yeni katı açabilirsin.' : 'Ekipman da tamam. Asansörden yeni katı açabilirsin.';
   S.playing = false; $('relicCard').hidden = false;
   S.afterRelic = L === NL - 1 ? bossIntro : null;
 }
@@ -1586,7 +1578,7 @@ function nextGoal(){
     return {txt:'SIRADAKİ: ' + TRACK_LABEL[best.k] + ' ' + fmtMoney(best.c), f:demo ? 1 : save.money/best.c};
   }
   if (!relicDone()) return {txt:save.tier === NL - 1 ? 'HEDEF: ATLANTİS\'İN KALBİ' : 'HEDEF: KATIN ESERİ · ' + fmtM(LAYERS[save.tier].bot), f:clamp(save.best/LAYERS[save.tier].bot, 0, 1)};
-  if (save.tier < NL - 1) { const c = elevCost(); return {txt:'HEDEF: ASANSÖR ' + fmtMoney(c), f:demo ? 1 : save.money/c}; }
+  if (save.tier < NL - 1) return {txt:'HEDEF: ASANSÖRLE YENİ KAT', f:1};
   return {txt:'HEDEF: FİNAL CANAVARI', f:1};
 }
 function updateGoal(){
