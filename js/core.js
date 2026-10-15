@@ -93,6 +93,7 @@ const memo = (key, v) => domMemo.get(key) === v ? false : (domMemo.set(key, v), 
 const setTxt = (el, v) => { v = String(v); if (memo(el.id + ':t', v)) el.textContent = v; };
 const setHid = (el, h) => { if (!memo(el.id + ':h', h)) return false; el.hidden = h; return true; };
 const setSty = (el, prop, v) => { if (memo(el.id + ':' + prop, v)) el.style.setProperty(prop, v); };
+document.documentElement.lang = 'tr';
 const cv = $('sea'), ctx = cv.getContext('2d');
 // Karanlık katmanı yumuşak degradelerden oluşur: yarım çözünürlükte çizip büyütmek görünmez ama dolum maliyetini 1/16'ya indirir.
 const DK_SCALE = 0.5;
@@ -104,7 +105,10 @@ function resize(){
   dk.width = Math.ceil(S.W*DK_SCALE); dk.height = Math.ceil(S.H*DK_SCALE);
 }
 addEventListener('resize', () => { resize(); hudBottom = $('hud').getBoundingClientRect().bottom; });
-document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { persist(); for (const e of [mus.cur, ...mus.old]) if (e) e.pause(); if (actx && actx.suspend) actx.suspend().catch(() => {}); }
+  else { if (mus.cur && mus.key) mus.cur.play().catch(() => {}); if (actx && actx.resume) actx.resume().catch(() => {}); }
+});
 addEventListener('pagehide', () => persist());
 const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -117,6 +121,10 @@ const P_INDEX = 'dalgic3.profiles', P_ACTIVE = 'dalgic3.active', P_MIGRATED = 'd
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
 const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+// Cihaz ayarları (bütün kaptanlar için ortak): müzik ve efekt seviyesi, titreşim. Ses aç/kapa kaptanın kaydında (save.muted).
+const SET_KEY = 'dalgic3.settings', SET = {music:0.8, sfx:1, vib:true};
+try { const o = JSON.parse(lsGet(SET_KEY) || '{}'); if (o && typeof o === 'object') { if (o.music >= 0 && o.music <= 1) SET.music = +o.music; if (o.sfx >= 0 && o.sfx <= 1) SET.sfx = +o.sfx; if (typeof o.vib === 'boolean') SET.vib = o.vib; } } catch (e) {}
+const saveSet = () => lsSet(SET_KEY, JSON.stringify(SET));
 let profiles = [];
 try { const a = JSON.parse(lsGet(P_INDEX) || '[]'); if (Array.isArray(a)) profiles = a.filter(p => p && typeof p.id === 'string' && /^[a-z0-9]{1,24}$/.test(p.id) && typeof p.name === 'string' && p.name); } catch (e) {}
 const byRecent = () => [...profiles].sort((a, b) => (b.last || 0) - (a.last || 0));
@@ -143,7 +151,11 @@ function mergeSave(s){
   save.skills = Object.assign({dash:0}, s.skills || {});
   save.hints = Object.assign({}, s.hints || {});
   save.equip = Array.isArray(s.equip) ? s.equip.filter(id => SKILLS.some(k => k.id === id) && id !== 'dash').slice(0, 3) : [];
-  save.relics = Array.isArray(s.relics) ? s.relics.filter(i => i >= 0 && i < NL) : [];
+  save.relics = Array.isArray(s.relics) ? [...new Set(s.relics.filter(i => Number.isInteger(i) && i >= 0 && i < NL))] : [];
+  for (const k of ['money', 'best', 'dives', 'kills', 'earned']) save[k] = Math.max(0, +save[k] || 0);
+  for (const k in save.wpn) { if (!WEAPONS.some(w => w.id === k)) delete save.wpn[k]; else save.wpn[k] = clamp(save.wpn[k]|0, 0, 3); }
+  for (const k in save.skills) { if (!SKILLS.some(w => w.id === k)) delete save.skills[k]; else save.skills[k] = clamp(save.skills[k]|0, 0, 2); }
+  for (const k of Object.keys(CONS)) save.inv[k] = clamp(save.inv[k]|0, 0, CONS[k].max);
   save.tier = clamp(save.tier|0, 0, NL - 1);
   save.station = clamp(save.station|0, 0, save.tier);
   for (const k of TRACKS) save.lv[k] = clamp(save.lv[k]|0, 0, 3);
@@ -289,7 +301,8 @@ function audio(){
   return actx;
 }
 function tone(freq, dur, type, vol, slide, at){
-  if (save.muted) return;
+  if (save.muted || SET.sfx <= 0) return;
+  vol = (vol || 0.1)*SET.sfx;
   const a = audio(); if (!a) return;
   try {
     const t0 = a.currentTime + (at || 0), o = a.createOscillator(), g = a.createGain();
@@ -300,7 +313,8 @@ function tone(freq, dur, type, vol, slide, at){
   } catch (e) {}
 }
 function noise(dur, vol, at, lowpass){
-  if (save.muted) return;
+  if (save.muted || SET.sfx <= 0) return;
+  vol = (vol || 0.15)*SET.sfx;
   const a = audio(); if (!a) return;
   try {
     const n = Math.floor(a.sampleRate*dur), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
@@ -338,20 +352,24 @@ function sfx(k){
     case 'thunder': noise(1.6, 0.22, 0, 260); tone(48, 1.2, 'sine', 0.12, 0.7, 0.05); break;
   }
 }
-function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+function buzz(ms){ if (!SET.vib) return; try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
 // ---------- müzik ----------
-// Kat grubuna göre döngü: kat 1-3 sığ, 4-7 karanlık, 8-11 abis; final dövüşünde ayrı parça.
+// Giriş ekranında kendi teması, her katın kendi parçası (k01..k11), final dövüşünde ayrı parça.
 // Parça değişince ve parça sonuna XF sn kala (aynı parça baştan) çapraz geçiş. Ses kapalıyken ve fragmanda susar.
-const MUSIC = {sig:'assets/music/sig.mp3', orta:'assets/music/orta.mp3', abis:'assets/music/abis.mp3', boss:'assets/music/boss.mp3'};
+// Tarayıcılar sesi ilk dokunuştan önce açmaz: ilk dokunuşta (giriş ekranında da) müzik başlar.
+const MUSIC = {intro:'assets/music/intro.mp3', boss:'assets/music/boss.mp3'};
+for (let i = 1; i <= 11; i++) MUSIC['k' + String(i).padStart(2, '0')] = 'assets/music/k' + String(i).padStart(2, '0') + '.mp3';
 const MUS_VOL = 0.38, XF = 3;
 const mus = {on:false, key:null, cur:null, old:[]};
+addEventListener('pointerdown', () => { mus.on = true; }, {once:true});
+addEventListener('keydown', () => { mus.on = true; }, {once:true});
 function musPlay(src){ const e = new Audio(src); e.volume = 0; e.play().catch(() => {}); return e; }
 function musTarget(){
-  if (!mus.on || S.cine || document.hidden || save.muted) return null;
+  if (!mus.on || S.cine || document.hidden || save.muted || SET.music <= 0) return null;
+  if (!$('intro').hidden) return 'intro';
   if (bossOn()) return 'boss';
-  const L = layerOf(diver.y);
-  return L <= 2 ? 'sig' : L <= 6 ? 'orta' : 'abis';
+  return 'k' + String(layerOf(diver.y) + 1).padStart(2, '0');
 }
 function musTick(dt){
   const key = musTarget();
@@ -362,7 +380,8 @@ function musTick(dt){
   const c = mus.cur;
   if (c && isFinite(c.duration) && c.duration > XF*3 && c.currentTime > c.duration - XF) { mus.old.push(c); mus.cur = musPlay(MUSIC[mus.key]); }
   const k = Math.min(1, dt/XF)*MUS_VOL;
-  if (mus.cur) mus.cur.volume = Math.min(MUS_VOL, mus.cur.volume + k);
+  const top = MUS_VOL*SET.music;
+  if (mus.cur) mus.cur.volume = mus.cur.volume < top ? Math.min(top, mus.cur.volume + k) : top;
   for (const e of mus.old) e.volume = Math.max(0, e.volume - k);
   mus.old = mus.old.filter(e => { if (e.volume > 0.001) return true; e.pause(); e.removeAttribute('src'); return false; });
 }
@@ -420,7 +439,7 @@ function generate(){
   S.items = []; S.glowSpots = [];
   for (let L = 0; L <= save.tier; L++) {
     const ly = LAYERS[L], top = LTOP[L], h = LH(L), gk = h/4000, r = seeded(L*7907 + 31 + save.ng*1031);
-    // Liste (kaç parça, hangi tür, değeri) tohumlu ve sabit; yerleri her dalışta kendi derinlik bandında rastgele.
+    // Liste (kaç parça, tür, değer) ve her parçanın yeri kat tohumuyla sabit: asansör, tekne ya da bayılma hiçbir şeyi yenilemez.
     const rr = (a, b) => a + r()*(b - a), list = [], BAND = [[0, 0.34], [0.34, 0.67], [0.67, 1]];
     for (let y = top + 60; y < top + h - 60; y += rr(22, 40)) {
       const f = (y - top)/h;
@@ -432,17 +451,18 @@ function generate(){
     const gone = new Set(Array.isArray(save.taken[L]) ? save.taken[L] : []);
     list.forEach((it, i) => {
       if (gone.has(i)) return;
-      const [b0, b1] = BAND[it.tier];
+      const [b0, b1] = BAND[it.tier], pr = seeded(L*7907 + 31 + save.ng*1031 + 101*(i + 1));
       for (let tr = 0; tr < 8; tr++) {
-        const y = clamp(top + h*rand(b0, b1), top + 60, top + h - 60), [lo, hi] = boundsAt(y), x = rand(lo + 14, hi - 14);
+        const y = clamp(top + h*(b0 + pr()*(b1 - b0)), top + 60, top + h - 60), [lo, hi] = boundsAt(y), x = lo + 14 + pr()*(hi - lo - 28);
         if (hi - lo < 60 || inLedge(x, y) || ledgeAt(y)) continue;
-        S.items.push({def:it.def, tier:it.tier, L, id:i, x, y, value:it.w*k*mods.value, ph:rand(0, 6.28), taken:false});
+        S.items.push({def:it.def, tier:it.tier, L, id:i, x, y, value:it.w*k*mods.value, ph:pr()*6.28, taken:false});
         break;
       }
     });
-    // Gizem: katta tek, duvara gizlenmiş, çok değerli; yeri her dalışta değişir. Yakına gelince ya da sonarla görünür.
+    // Gizem: katta tek, duvara gizlenmiş, çok değerli, yeri sabit. Yakına gelince ya da sonarla görünür.
+    const sr = seeded(L*4241 + 77 + save.ng*1031);
     if (!save.secrets.includes(L)) for (let tr = 0; tr < 12; tr++) {
-      const y = top + h*rand(0.12, 0.92), side = Math.random() < 0.5 ? 0 : 1, x = side ? WORLD_W - wallW(y, 1) - 16 : wallW(y, 0) + 16;
+      const y = top + h*(0.12 + sr()*0.8), side = sr() < 0.5 ? 0 : 1, x = side ? WORLD_W - wallW(y, 1) - 16 : wallW(y, 0) + 16;
       if (ledgeAt(y) || isSafeAny(x, y)) continue;
       S.items.push({secret:true, L, x, y, value:nice(SECRET_K*shopTotal(L)*mods.value), ph:rand(0, 6.28), taken:false});
       break;
@@ -507,11 +527,13 @@ function hurt(sec, name, src){
   if (DG.fx && DG.fx.burst) DG.fx.burst(diver.x, diver.y, '#ff5a4e', 10, 160);
   return dmg;
 }
+const BOUNTY_K = 0.25;   // canavar ödülü çarpanı (hazine ve dükkân dengesine göre)
 function bounty(m){
-  const reward = 0.5*valUnit(m.L)*MON[m.t].bounty*mods.value*(m.size > 1 ? 2 : 1);
+  // Listede olmayan (boss'un çağırdığı) canavarlar para vermez: yoksa sonsuz para kaynağı olurdu.
+  const reward = m.rid == null ? 0 : BOUNTY_K*valUnit(m.L)*MON[m.t].bounty*mods.value*(m.size > 1 ? 2 : 1);
   if (!demo) save.money += reward;
   save.earned += reward; save.kills++;
-  float(m.x, m.y - 22, MON[m.t].n + ' +' + fmtMoney(reward), '#ffb03a');
+  if (reward > 0) float(m.x, m.y - 22, MON[m.t].n + ' +' + fmtMoney(reward), '#ffb03a');
   recordKill(m);
   sfx('kill');
   return reward;
@@ -959,6 +981,8 @@ function sheetSwipe(el, close){
 sheetSwipe($('shop'), () => { $('shop').hidden = true; });
 sheetSwipe($('elev'), () => { $('elev').hidden = true; });
 sheetSwipe($('profSheet'), () => closeProfiles());
+sheetSwipe($('setSheet'), () => closeSettings());
+sheetSwipe($('legalSheet'), () => closeLegal());
 // Dükkân sekmeleri sağa/sola kaydırarak değişir.
 {
   const ORDER = ['gear','wpn','skill','cons','relic'], body = $('shopBody');
@@ -1075,6 +1099,7 @@ function newGamePlus(){
   save.ng++; save.tier = 0; save.relics = []; save.bossDone = false; save.endSeen = false; save.station = 0;
   save.signal = false; save.doorOpened = false;   // teaserSeen kalır (girişten tekrar izlenebilir)
   save.killed = {}; save.cleared = []; save.taken = {}; save.secrets = [];
+  if (DG.wpn && DG.wpn.reset) DG.wpn.reset();
   for (const k of TRACKS) save.lv[k] = 0;
   $('elev').hidden = true;
   setup(); persist();
@@ -1165,7 +1190,53 @@ $('bcBtn').addEventListener('click', () => {
 });
 $('endBtn').addEventListener('click', () => { $('endCard').hidden = true; save.endSeen = true; persist(); S.playing = true; });
 $('eTeaser').addEventListener('click', () => { $('endCard').hidden = true; playTeaser(() => { $('endCard').hidden = false; }); });
-$('muteBtn').addEventListener('click', e => { e.currentTarget.blur(); save.muted = !save.muted; $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK'; persist(); if (!save.muted) sfx('buy'); });
+$('muteBtn').addEventListener('click', e => { e.currentTarget.blur(); openSettings(); });
+$('setIntro').addEventListener('click', () => openSettings());
+
+// ---------- ayarlar ----------
+function syncSettings(){
+  const on = (b, v, t, f) => { b.setAttribute('aria-pressed', String(v)); b.textContent = v ? t : f; };
+  on($('setSound'), !save.muted, 'AÇIK', 'KAPALI'); on($('setVib'), SET.vib, 'AÇIK', 'KAPALI');
+  on($('setCtrl'), save.ctrl === 2, '2 PARMAK', '1 PARMAK');
+  $('setMusic').value = Math.round(SET.music*100); $('setMusicV').textContent = Math.round(SET.music*100) + '%';
+  $('setSfx').value = Math.round(SET.sfx*100); $('setSfxV').textContent = Math.round(SET.sfx*100) + '%';
+}
+function openSettings(){ syncSettings(); $('setSheet').hidden = false; $('setSheet').scrollTop = 0; }
+function closeSettings(){ $('setSheet').hidden = true; }
+$('setClose').addEventListener('click', closeSettings);
+$('setSound').addEventListener('click', () => { save.muted = !save.muted; persist(); syncSettings(); if (!save.muted) sfx('buy'); });
+$('setVib').addEventListener('click', () => { SET.vib = !SET.vib; saveSet(); syncSettings(); buzz(30); });
+$('setCtrl').addEventListener('click', () => { setCtrl(save.ctrl === 2 ? 1 : 2); syncSettings(); });
+$('setMusic').addEventListener('input', e => { SET.music = (+e.target.value || 0)/100; saveSet(); syncSettings(); });
+$('setSfx').addEventListener('input', e => { SET.sfx = (+e.target.value || 0)/100; saveSet(); syncSettings(); });
+$('setSfx').addEventListener('change', () => sfx('pick'));
+
+// ---------- gizlilik, kullanım şartları, hakkında ----------
+const CONTACT = 'İLETİŞİM_EPOSTASI';
+const LEGAL = {
+  priv:['Gizlilik Politikası', `<p>Son güncelleme: 15 Ekim 2026</p>
+<h3>KISACA</h3><p>Dalgıç hiçbir kişisel verini toplamaz, saklamaz ya da kimseyle paylaşmaz.</p>
+<h3>CİHAZINDA TUTULANLAR</h3><ul><li>Kaptan adın, oyun ilerlemen ve ayarların yalnızca bu cihazda (uygulamanın ya da tarayıcının kendi deposunda) saklanır.</li><li>Bu bilgiler bize ya da başka bir sunucuya gönderilmez.</li><li>Uygulamayı silersen ya da tarayıcı verilerini temizlersen hepsi silinir. Saklamak istersen Kaptanlar penceresindeki yedek kodunu kullanabilirsin.</li></ul>
+<h3>TOPLAMADIKLARIMIZ</h3><ul><li>Hesap, e-posta, telefon, konum, kişiler, fotoğraf ya da cihaz kimliği istemiyoruz.</li><li>Reklam, analiz ya da takip aracı kullanmıyoruz.</li></ul>
+<h3>SATIN ALIMLAR</h3><p>Oyunda uygulama içi satın alım sunulursa bu işlemler yalnızca Google Play ya da App Store üzerinden yapılır. Ödeme bilgilerin bize ulaşmaz; o mağazanın gizlilik politikası geçerlidir.</p>
+<h3>ÇOCUKLAR</h3><p>Hiç kimseden, çocuklar dahil, kişisel veri toplamıyoruz.</p>
+<h3>DEĞİŞİKLİKLER</h3><p>Bu politika değişirse güncel hali burada yayınlanır.</p>
+<h3>İLETİŞİM</h3><p>Sorun ve sorular için: ${CONTACT}</p>`],
+  terms:['Kullanım Şartları', `<p>Son güncelleme: 15 Ekim 2026</p>
+<h3>OYUN</h3><p>Dalgıç eğlence amaçlı bir oyundur ve "olduğu gibi" sunulur. Hatasız ya da kesintisiz çalışacağı garanti edilmez.</p>
+<h3>OYUN İÇİ PARA</h3><ul><li>Oyundaki para (₺) ve varsa satın alınan koin paketleri sanaldır; gerçek parayla değiştirilemez, devredilemez ve oyun dışında değeri yoktur.</li><li>İade talepleri satın aldığın mağazanın (Google Play, App Store) kurallarına tabidir.</li><li>Kayıtlar cihazında tutulduğu için uygulamayı silmek ya da cihaz değiştirmek ilerlemeni ve sanal paranı kaybettirebilir. Yedek kodunu saklamak senin sorumluluğundadır.</li></ul>
+<h3>ADİL KULLANIM</h3><p>Oyunu değiştirerek, hile yazılımıyla ya da açıklardan yararlanarak avantaj sağlamak yasaktır.</p>
+<h3>TELİF HAKLARI</h3><p>Oyunun kodu, görselleri, müzikleri, karakterleri ve "Dalgıç" ile "Ocean Secret" adları yapımcısına aittir. İzinsiz kopyalanamaz, çoğaltılamaz ya da satılamaz.</p>
+<h3>İLETİŞİM</h3><p>${CONTACT}</p>`],
+  about:['Hakkında', `<h3>DALGIÇ</h3><p>Sürüm 1.0 · Tek bir deniz, 11 kat ve en dipte Ocean Secret.</p>
+<h3>YAPIM</h3><p>Fikir ve yapım: Behzad</p>
+<h3>KAYNAKLAR</h3><ul><li>Müzikler: Suno (Pro lisansı ile üretildi)</li><li>Görseller ve fragman: Google Flow ile üretildi</li><li>Yazı tipleri: Chakra Petch, Saira Stencil One (SIL Open Font License)</li></ul>
+<h3>İLETİŞİM</h3><p>${CONTACT}</p>`],
+};
+function openLegal(k){ const d = LEGAL[k]; $('legalTitle').textContent = d[0]; $('legalBody').innerHTML = d[1]; $('legalSheet').hidden = false; $('legalSheet').scrollTop = 0; }
+const closeLegal = () => { $('legalSheet').hidden = true; };
+$('legalClose').addEventListener('click', closeLegal);
+for (const [b, k] of [['lnkPriv','priv'],['lnkTerms','terms'],['lnkAbout','about'],['setPriv','priv'],['setTerms','terms'],['setAbout','about']]) $(b).addEventListener('click', () => openLegal(k));
 function syncDemoBtn(){
   const b = $('demoBtn'); b.hidden = !DEV; b.setAttribute('aria-pressed', String(demo));
   b.textContent = demo ? 'DEMO AÇIK · sınırsız para' : 'DEMO KAPALI · gerçek oyun';
@@ -1284,7 +1355,10 @@ $('bkLoad').addEventListener('click', () => {
 let backT = 0;
 const capApp = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
 function onBack(){
+  if (!$('fadeBlack').hidden) return;
   if (!$('teaser').hidden) { closeTeaser(); return; }
+  if (!$('legalSheet').hidden) { closeLegal(); return; }
+  if (!$('setSheet').hidden) { closeSettings(); return; }
   if (!$('profSheet').hidden) { closeProfiles(); return; }
   if (!$('wpnPick').hidden) { closePick(); return; }
   if (!$('shop').hidden) { $('shop').hidden = true; return; }
@@ -1310,7 +1384,7 @@ $('startBtn').addEventListener('click', () => {
   const z0 = stationZone(), L0 = z0 > 0 ? z0 : layerOf(diver.y);
   toast(LAYERS[L0].name, 'KAT ' + (L0 + 1) + ' / ' + NL);
   hint('move', 'Ekrana dokun ve sürükle: dalgıç parmağının yönüne yüzer.');
-  if (save.relics.includes(NL - 1) && !save.bossDone) setTimeout(bossIntro, 600);
+  if (save.relics.includes(NL - 1) && !save.bossDone && !bossOn()) setTimeout(bossIntro, 600);
   else if (save.signal && !save.doorOpened) setTimeout(() => msg('Sinyal hâlâ geliyor: pusulayı izle, Ocean Secret\'in dibine in.', 'var(--relic)'), 900);
 });
 
@@ -1731,7 +1805,7 @@ function updateGoal(){
 }
 function updateCtx(){
   updateGoal();
-  const show = S.playing && curStationZone >= 0;
+  const show = S.playing && curStationZone >= 0 && !bossOn();
   setHid($('ctx'), !show);
   if (setHid($('opts'), S.playing && (curStationZone < 0 || bossOn()))) hudBottom = $('hud').getBoundingClientRect().bottom;
   if (!show) { $('shop').hidden = true; $('elev').hidden = true; }
@@ -1742,7 +1816,7 @@ const SK_SHORT = {lift:'BALON', shock:'ŞOK', flare:'FİŞEK', sonar:'SONAR', ca
 function updateControls(){
   if (pickT > 0) { pickT -= S.dt; if (pickT <= 0) closePick(); }
   // İstasyonda düğme kümesi gizlenir: altında kalan Dükkân/Asansör düğmelerine basılabilsin.
-  const show = S.playing && diver.y > 30 && curStationZone < 0;
+  const show = S.playing && diver.y > 30 && (curStationZone < 0 || bossOn());
   setHid($('controls'), !show);
   if (!show) { if (!$('wpnPick').hidden) closePick(); return; }
   setHid(fireBtn, save.ctrl === 2);
@@ -2258,7 +2332,6 @@ function setup(){
   diver.x = p.x; diver.y = save.station === 0 ? 0 : p.y - 50; diver.vx = diver.vy = 0;
   generate(); spawnMons(); S.o2 = gTank();
   cam.y = diver.y - S.H*0.45; camLX = camLY = leanX = leanY = 0; lastLayer = save.station > 0 ? save.station : layerOf(diver.y);
-  $('muteBtn').textContent = save.muted ? 'SES KAPALI' : 'SES AÇIK';
   setCtrl(save.ctrl === 2 ? 2 : 1);
   if (DG.boss && DG.boss.reset) DG.boss.reset();
 }

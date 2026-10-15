@@ -217,7 +217,7 @@ body.boss #msg{top:calc(env(safe-area-inset-top,0px) + 104px)}
 
 
 /* sağ panel açılır-kapanır: kapalıyken sadece kat ve para */
-.ctog{pointer-events:auto;display:flex;align-items:center;justify-content:flex-end;gap:6px;max-width:100%;min-height:30px;margin:-6px -4px -2px 0;padding:0 4px;border:0;background:none;color:var(--acc-hi);cursor:pointer}
+.ctog{pointer-events:auto;display:flex;align-items:center;justify-content:flex-end;gap:6px;max-width:100%;min-height:40px;margin:-6px -4px -2px 0;padding:0 4px;border:0;background:none;color:var(--acc-hi);cursor:pointer}
 .ctog svg{width:16px;height:16px;flex:none;transition:transform .2s}
 .ctog #hStage{max-width:none;overflow:visible}
 .cash.min .ctog svg{transform:rotate(0)}
@@ -546,6 +546,24 @@ body.boss #sig{display:none}
 #shopBody.shR{animation:shR .2s ease}
 @keyframes shL{from{transform:translateX(28px);opacity:.4}}
 @keyframes shR{from{transform:translateX(-28px);opacity:.4}}
+/* ---- ayarlar ve yasal metinler ---- */
+.setList{display:grid;gap:8px;max-width:640px;margin:0 auto}
+.setRow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 12px;padding:12px 14px;border:1px solid var(--hair-soft);border-radius:14px;background:rgba(255,255,255,.025)}
+.setRow b{font-size:15px}
+.setRow small{grid-column:1/-1;font-size:12px;color:var(--dim)}
+.setRow input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--acc);min-height:32px}
+.setRow .val{font-size:13px;color:var(--acc-hi)}
+.tgl{min-width:84px;min-height:40px;border-radius:999px;border:1px solid var(--hair);background:transparent;color:var(--dim);font-size:13px;letter-spacing:.06em}
+.tgl[aria-pressed="true"]{background:var(--acc);color:var(--acc-ink);border-color:var(--acc-hi)}
+.setLinks{display:flex;flex-wrap:wrap;gap:8px;max-width:640px;margin:14px auto 0}
+.setLinks button{flex:1 1 150px;min-height:44px;border-radius:12px;border:1px solid var(--hair-soft);background:rgba(255,255,255,.03);color:var(--foam);font-size:13px}
+.legalLinks{font-size:12px!important;color:var(--dim)}
+.legalLinks button{background:none;border:0;color:var(--dim);text-decoration:underline;font:inherit;font-size:12px;padding:10px 4px;min-height:44px}
+#legalBody{max-width:640px;margin:0 auto;font-size:14px;line-height:1.55;color:var(--foam)}
+#legalBody h3{font-family:var(--f-ui);font-size:13px;letter-spacing:.12em;color:var(--acc-hi);margin:18px 0 6px}
+#legalBody p,#legalBody li{color:var(--dim);margin:0 0 8px}
+#legalBody ul{padding-left:18px;margin:0 0 8px}
+#setSheet,#legalSheet{z-index:7;box-shadow:0 -16px 44px rgba(0,0,0,.6),0 0 0 100vmax rgba(1,5,12,.6)}
 /* ---- geri tuşu ipucu, kayıt yedeği ---- */
 #backHint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);transform:translateX(-50%);z-index:20;background:rgba(1,6,12,.88);border:1px solid var(--hair);color:var(--foam);font-size:13px;font-weight:600;padding:10px 16px;border-radius:999px;pointer-events:none;white-space:nowrap}
 .bk{max-width:640px;margin:14px auto 0;display:grid;gap:8px;padding:14px;border:1px solid var(--hair-soft);border-radius:14px}
@@ -591,7 +609,7 @@ body.boss #sig{display:none}
     <span class="goal" id="hGoal" hidden><span id="hGoalTxt"></span><span class="gbar"><i id="hGoalFill"></i></span></span>
     <span class="lbl" id="hBestBox">REKOR <span id="hBest" class="val">0</span> m</span>
     <span class="lbl" id="hCarry" hidden>ÇANTADA <span id="hCarryV" class="val">₺0</span></span>
-    <span class="opts" id="opts"><button class="mute" id="muteBtn" type="button">SES AÇIK</button><button class="mute" id="ctrlBtn" type="button">1 PARMAK</button></span>
+    <span class="opts" id="opts"><button class="mute" id="muteBtn" type="button">AYARLAR</button><button class="mute" id="ctrlBtn" type="button">1 PARMAK</button></span>
   </div>
 </div>
 
@@ -664,9 +682,11 @@ body.boss #sig{display:none}
     <p class="small">Telefonda: ekranın herhangi bir yerine dokun ve sürükle. Sağ altta ATEŞ, silah ve yetenekler. İki parmak modunda sol yarı yüzer, sağ yarı nişan alıp ateş eder.<br>Bilgisayarda: WASD ya da oklar, Boşluk ateş, Shift hız, Q silah, 1-2-3 yetenek, E asansör, B dükkân.</p>
     <div class="toggles">
       <button class="demo" id="ctrlIntro" type="button" aria-pressed="false">KONTROL: 1 PARMAK</button>
-      <button class="demo" id="demoBtn" type="button" aria-pressed="true">DEMO AÇIK · sınırsız para</button>
+      <button class="demo" id="demoBtn" type="button" aria-pressed="true" hidden>DEMO AÇIK · sınırsız para</button>
       <button class="demo" id="teaserIntro" type="button" hidden>FRAGMAN · DALGIÇ 2</button>
+      <button class="demo" id="setIntro" type="button" aria-pressed="false">AYARLAR</button>
     </div>
+    <p class="legalLinks"><button type="button" id="lnkPriv">Gizlilik Politikası</button> · <button type="button" id="lnkTerms">Kullanım Şartları</button> · <button type="button" id="lnkAbout">Hakkında</button></p>
   </div>
 </div>
 
@@ -726,6 +746,23 @@ body.boss #sig{display:none}
     <div class="row"><input class="tin" id="bkIn" placeholder="Yedek kodunu yapıştır" spellcheck="false" autocomplete="off"><button class="buy alt" id="bkLoad" type="button">Geri yükle</button></div>
     <small id="bkMsg">Telefon değiştirirken ya da oyunu silmeden önce kodu kopyala, bir yere kaydet. Geri yükleyince ilerleme yeni bir kaptan olarak gelir.</small>
   </div>
+</div>
+
+<div id="setSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle" hidden>
+  <div class="sheethead"><h2 id="setTitle">Ayarlar<small>SES · KONTROL · BİLGİ</small></h2><button class="close" id="setClose" type="button">Kapat</button></div>
+  <div class="setList">
+    <div class="setRow"><b>Ses</b><button class="tgl" id="setSound" type="button" aria-pressed="true">AÇIK</button><small>Müzik ve efektlerin hepsi.</small></div>
+    <div class="setRow"><label for="setMusic"><b>Müzik</b></label><span class="val" id="setMusicV">80%</span><input type="range" id="setMusic" min="0" max="100" step="5"></div>
+    <div class="setRow"><label for="setSfx"><b>Efektler</b></label><span class="val" id="setSfxV">100%</span><input type="range" id="setSfx" min="0" max="100" step="5"></div>
+    <div class="setRow"><b>Titreşim</b><button class="tgl" id="setVib" type="button" aria-pressed="true">AÇIK</button></div>
+    <div class="setRow"><b>Kontrol</b><button class="tgl" id="setCtrl" type="button" aria-pressed="false">1 PARMAK</button><small>İki parmak: sol yarı yüzer, sağ yarı nişan alıp ateş eder.</small></div>
+  </div>
+  <div class="setLinks"><button type="button" id="setPriv">Gizlilik Politikası</button><button type="button" id="setTerms">Kullanım Şartları</button><button type="button" id="setAbout">Hakkında</button></div>
+</div>
+
+<div id="legalSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="legalTitle" hidden>
+  <div class="sheethead"><h2 id="legalTitle">Gizlilik Politikası</h2><button class="close" id="legalClose" type="button">Kapat</button></div>
+  <div id="legalBody"></div>
 </div>
 
 <div id="backHint" hidden>Çıkmak için tekrar geri bas</div>
