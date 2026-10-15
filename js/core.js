@@ -67,6 +67,7 @@ function defaultSave(){
     wpn:{spear:0}, curWpn:'spear', skills:{dash:0}, equip:[], inv:{spareTank:0,spareBag:0},
     relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}, ctrl:1, ng:0,
     killed:{}, cleared:[],   // killed[kat] = öldürülen liste sırası (m.rid) dizisi; cleared = temizlenen katlar
+    taken:{},                // taken[kat] = satılmış hazinelerin sıra numaraları (bir daha çıkmaz)
     signal:false, doorOpened:false, teaserSeen:false};   // finalden sonra dipteki gizli kapı: sinyal, açıldı mı, fragman izlendi mi
 }
 const save = defaultSave();
@@ -147,6 +148,8 @@ function mergeSave(s){
   save.killed = {};
   if (s.killed && typeof s.killed === 'object') for (const k in s.killed) { const L = k|0, a = s.killed[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.killed[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
   save.cleared = Array.isArray(s.cleared) ? [...new Set(s.cleared.filter(i => i >= 0 && i < NL))] : [];
+  save.taken = {};
+  if (s.taken && typeof s.taken === 'object') for (const k in s.taken) { const L = k|0, a = s.taken[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.taken[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
   if (!WEAPONS.some(w => w.id === save.curWpn && save.wpn[w.id] != null)) save.curWpn = 'spear';
   // Kapıdan önceki kayıtlar: finali yenmiş olan sinyali hemen alır.
   if (s.signal == null && save.bossDone) save.signal = true;
@@ -365,21 +368,34 @@ function isSafeAny(x, y){
   for (let s = 1; s < NL; s++) if (dist(x, y, BOAT_X, LTOP[s]) < SAFE_R) return true;
   return false;
 }
-// Hazineler her dalışta yeniden dağılır (ekonomi); canavarlar değil (spawnMons).
+// Bir katın dükkân toplamı: 6 ekipmanın 3 seviyesi + o katta açılan silah ve yeteneklerin tam fiyatı (başlangıçta verilenler hariç).
+function shopTotal(L){
+  const u = priceUnit(L);
+  let t = 0;
+  for (const k of TRACKS) t += u*TRACK_W[k]*(STEP_COST[1] + STEP_COST[2] + STEP_COST[3]);
+  for (const w of WEAPONS) if (w.unlock === L && w.id !== 'spear') t += priceUnit(w.unlock)*D.WPN_COST.reduce((a, b) => a + b, 0);
+  for (const sk of SKILLS) if (sk.unlock === L && sk.id !== 'dash') t += priceUnit(sk.unlock)*D.SKILL_COST.reduce((a, b) => a + b, 0);
+  return t;
+}
+const LOOT_K = 2.2;   // katın hazinelerinin toplam değeri = dükkân toplamı x 2,2 (canavar ödülleri ayrıca)
+// Hazineler sabit: kat (ve Yeni Sefer+ turu) tohumuyla hep aynı yerde. Satılan bir daha çıkmaz (save.taken);
+// bayılınca çantadakiler satılmadığı için denize geri döner. Canavarlar da yeniden doğmaz (spawnMons).
 function generate(){
   S.items = []; S.glowSpots = [];
   for (let L = 0; L <= save.tier; L++) {
-    const ly = LAYERS[L], V = valUnit(L), top = LTOP[L], h = LH(L), gk = h/4000;
-    for (let y = top + 60; y < top + h - 60; y += rand(45, 80)) {
+    const ly = LAYERS[L], top = LTOP[L], h = LH(L), gk = h/4000, r = seeded(L*7907 + 31 + save.ng*1031);
+    const rr = (a, b) => a + r()*(b - a), list = [];
+    for (let y = top + 60; y < top + h - 60; y += rr(22, 40)) {
       const f = (y - top)/h;
       let tier = f < 0.34 ? 0 : f < 0.67 ? 1 : 2;
-      if (tier < 2 && Math.random() < 0.07) tier++;
-      const [lo, hi] = boundsAt(y); if (hi - lo < 60) continue;
-      const x = rand(lo + 14, hi - 14);
-      if (inLedge(x, y) || ledgeAt(y)) continue;
-      const def = ly.items[tier][Math.random() < 0.6 ? 0 : 1];
-      S.items.push({def, tier, L, x, y, value:V*[1,3,8][tier]*(1 + 1.5*f)*rand(0.85, 1.15)*mods.value, ph:rand(0, 6.28), taken:false});
+      if (tier < 2 && r() < 0.07) tier++;
+      const [lo, hi] = boundsAt(y), x = rr(lo + 14, hi - 14), pick = r(), w = [1,3,8][tier]*(1 + 1.5*f)*rr(0.85, 1.15), ph = rr(0, 6.28);
+      if (hi - lo < 60 || inLedge(x, y) || ledgeAt(y)) continue;
+      list.push({def:ly.items[tier][pick < 0.6 ? 0 : 1], tier, L, x, y, w, ph});
     }
+    const sum = list.reduce((a, it) => a + it.w, 0) || 1, k = LOOT_K*shopTotal(L)/sum;
+    const gone = new Set(Array.isArray(save.taken[L]) ? save.taken[L] : []);
+    list.forEach((it, i) => { if (!gone.has(i)) S.items.push({def:it.def, tier:it.tier, L, id:i, x:it.x, y:it.y, value:it.w*k*mods.value, ph:it.ph, taken:false}); });
     if (!save.relics.includes(L) && !(S.relicHeld === L)) S.items.push(placeRelic(L));
     const bot = L === NL - 1 ? WORLD_H : LTOP[L + 1];
     if (ly.decor === 'vents') for (let i = 0; i < Math.round(6*gk); i++) S.glowSpots.push({x:120 + (i%6)*230 + rand(-30, 30), y:top + h*rand(0.1, 0.95), r:130, c:'255,110,40'});
@@ -888,6 +904,22 @@ function sheetSwipe(el, close){
 sheetSwipe($('shop'), () => { $('shop').hidden = true; });
 sheetSwipe($('elev'), () => { $('elev').hidden = true; });
 sheetSwipe($('profSheet'), () => closeProfiles());
+// Dükkân sekmeleri sağa/sola kaydırarak değişir.
+{
+  const ORDER = ['gear','wpn','skill','cons','relic'], body = $('shopBody');
+  let sx = 0, sy = 0, on = false;
+  body.addEventListener('touchstart', e => { on = e.touches.length === 1; if (on) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, {passive:true});
+  body.addEventListener('touchend', e => {
+    if (!on) return; on = false;
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)*1.5) return;
+    const j = ORDER.indexOf(shopTab) + (dx < 0 ? 1 : -1);
+    if (j < 0 || j >= ORDER.length) return;
+    shopTab = ORDER[j]; renderShop(); $('shop').scrollTop = 0;
+    body.classList.remove('shL', 'shR'); void body.offsetWidth; body.classList.add(dx < 0 ? 'shL' : 'shR');
+    const tb = $('tab-' + shopTab); if (tb && tb.scrollIntoView) tb.scrollIntoView({block:'nearest', inline:'center'});
+  }, {passive:true});
+}
 
 // ---------- asansör ----------
 // Dikey kuyu haritası: tekne en üstte, 11 kat sırayla. Açık istasyona tek dokunuşla gidilir;
@@ -987,7 +1019,7 @@ function newGamePlus(){
   spend(c);
   save.ng++; save.tier = 0; save.relics = []; save.bossDone = false; save.endSeen = false; save.station = 0;
   save.signal = false; save.doorOpened = false;   // teaserSeen kalır (girişten tekrar izlenebilir)
-  save.killed = {}; save.cleared = [];
+  save.killed = {}; save.cleared = []; save.taken = {};
   for (const k of TRACKS) save.lv[k] = 0;
   $('elev').hidden = true;
   setup(); persist();
@@ -1391,6 +1423,8 @@ function arriveAtStation(s){
     float(diver.x, diver.y - 40, '+' + fmtMoney(sum), '#ffb03a');
     msg(S.bag.length + ' parça satıldı: ' + fmtMoney(sum), 'var(--amber)'); sfx('sell'); buzz(40);
   }
+  // satılan hazineler bir daha çıkmaz
+  for (const it of S.bag) if (it.id != null) { const a = save.taken[it.L] || (save.taken[it.L] = []); if (!a.includes(it.id)) a.push(it.id); }
   S.bag = []; bagBonus = 0; save.station = s;
   if (S.relicHeld !== false) {
     const L = S.relicHeld; S.relicHeld = false;

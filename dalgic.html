@@ -542,6 +542,10 @@ body.boss #sig{display:none}
 #tzNext{position:absolute;z-index:2;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 30px);animation:tzFade .5s ease both}
 #tzNext:active{transform:translateX(-50%) translateY(2px)}
 
+#shopBody.shL{animation:shL .2s ease}
+#shopBody.shR{animation:shR .2s ease}
+@keyframes shL{from{transform:translateX(28px);opacity:.4}}
+@keyframes shR{from{transform:translateX(-28px);opacity:.4}}
 /* ---- telefon: kontroller ve dalış paneli ekranı daha az kaplasın ---- */
 @media (max-width:600px){
   #controls{transform:scale(.78);transform-origin:100% 100%;right:calc(env(safe-area-inset-right,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 8px)}
