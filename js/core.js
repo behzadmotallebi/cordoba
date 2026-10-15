@@ -69,7 +69,7 @@ function defaultSave(){
     killed:{}, cleared:[],   // killed[kat] = öldürülen liste sırası (m.rid) dizisi; cleared = temizlenen katlar
     taken:{},                // taken[kat] = satılmış hazinelerin sıra numaraları (bir daha çıkmaz)
     secrets:[],              // gizemi bulunan katlar
-    daily:{last:'', streak:0}, playT:0,   // günlük ödül; toplam oynama süresi (sn)
+    playT:0,                 // toplam oynama süresi (sn)
     signal:false, doorOpened:false, teaserSeen:false};   // finalden sonra dipteki gizli kapı: sinyal, açıldı mı, fragman izlendi mi
 }
 const save = defaultSave();
@@ -154,7 +154,6 @@ function mergeSave(s){
   if (s.killed && typeof s.killed === 'object') for (const k in s.killed) { const L = k|0, a = s.killed[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.killed[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
   save.cleared = Array.isArray(s.cleared) ? [...new Set(s.cleared.filter(i => i >= 0 && i < NL))] : [];
   save.secrets = Array.isArray(s.secrets) ? [...new Set(s.secrets.filter(i => Number.isInteger(i) && i >= 0 && i < NL))] : [];
-  save.daily = s.daily && typeof s.daily === 'object' ? {last:String(s.daily.last || ''), streak:Math.max(0, s.daily.streak|0)} : {last:'', streak:0};
   save.playT = Math.max(0, +s.playT || 0);
   save.taken = {};
   if (s.taken && typeof s.taken === 'object') for (const k in s.taken) { const L = k|0, a = s.taken[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.taken[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
@@ -1256,33 +1255,6 @@ $('profFirst').addEventListener('submit', e => { e.preventDefault(); $('startBtn
 $('profFirstIn').addEventListener('input', () => { $('profFirstErr').textContent = ''; });
 $('teaserIntro').addEventListener('click', () => playTeaser(null));
 
-// ---------- günlük ödül ----------
-// Her gün ilk girişte. Seri (art arda günler) 7 güne kadar ödülü büyütür; bir gün atlanırsa seri 1'e döner.
-const dayStr = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-let dailyPend = null;
-function showDaily(){
-  if (!S.playing || S.riding || !$('relicCard').hidden || !$('bossCard').hidden || !$('endCard').hidden || !$('teaser').hidden) return;
-  const now = new Date(), today = dayStr(now), y = new Date(now); y.setDate(now.getDate() - 1);
-  if (save.daily.last === today) return;
-  const streak = save.daily.last === dayStr(y) ? save.daily.streak + 1 : 1, step = Math.min(streak, 7);
-  const amt = nice(0.08*shopTotal(save.tier)*(1 + 0.2*(step - 1)));
-  dailyPend = {today, streak, amt};
-  $('dTitle').textContent = 'Gün ' + streak;
-  const dd = $('dDays'); dd.textContent = '';
-  for (let i = 1; i <= 7; i++) { const b = el('i', i < step ? 'on' : i === step ? 'on today' : '', String(i)); dd.appendChild(b); }
-  $('dAmt').textContent = '+' + fmtMoney(amt);
-  $('dNote').textContent = step < 7 ? 'Yarın gel: seri büyüdükçe ödül büyür (7. güne kadar).' : 'Tam seri! Her gün en büyük ödül.';
-  S.playing = false; $('dailyCard').hidden = false; sfx('relic');
-}
-$('dBtn').addEventListener('click', () => {
-  const d = dailyPend; dailyPend = null; $('dailyCard').hidden = true; S.playing = true;
-  if (!d) return;
-  save.daily = {last:d.today, streak:d.streak};
-  if (!demo) save.money += d.amt;
-  save.earned += d.amt; persist(); sfx('sell'); buzz(40);
-  msg('Günlük ödül: +' + fmtMoney(d.amt), 'var(--amber)');
-});
-
 // ---------- kayıt yedeği (telefon değişince ya da silmeden önce) ----------
 const bkMsg = t => { $('bkMsg').textContent = t; };
 $('bkCopy').addEventListener('click', () => {
@@ -1317,7 +1289,6 @@ function onBack(){
   if (!$('wpnPick').hidden) { closePick(); return; }
   if (!$('shop').hidden) { $('shop').hidden = true; return; }
   if (!$('elev').hidden) { $('elev').hidden = true; return; }
-  if (!$('dailyCard').hidden) { $('dBtn').click(); return; }
   if (!$('relicCard').hidden) { $('rcBtn').click(); return; }
   if (!$('endCard').hidden) { $('endBtn').click(); return; }
   if (!$('bossCard').hidden || S.riding) return;
@@ -1339,7 +1310,6 @@ $('startBtn').addEventListener('click', () => {
   const z0 = stationZone(), L0 = z0 > 0 ? z0 : layerOf(diver.y);
   toast(LAYERS[L0].name, 'KAT ' + (L0 + 1) + ' / ' + NL);
   hint('move', 'Ekrana dokun ve sürükle: dalgıç parmağının yönüne yüzer.');
-  setTimeout(showDaily, 1300);
   if (save.relics.includes(NL - 1) && !save.bossDone) setTimeout(bossIntro, 600);
   else if (save.signal && !save.doorOpened) setTimeout(() => msg('Sinyal hâlâ geliyor: pusulayı izle, Ocean Secret\'in dibine in.', 'var(--relic)'), 900);
 });
