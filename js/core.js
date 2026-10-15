@@ -856,6 +856,39 @@ function bonusText(b){
 function openShop(){ if (!S.playing) return; renderShop(); $('elev').hidden = true; $('shop').hidden = false; $('shop').scrollTop = 0; }
 for (const k of ['gear','wpn','skill','cons','relic']) $('tab-' + k).addEventListener('click', () => { shopTab = k; renderShop(); });
 $('shopClose').addEventListener('click', () => { $('shop').hidden = true; });
+// Alttan açılan pencereler aşağı sürüklenerek kapanır (en üstteyken). Kısa çekişte yerine döner.
+function sheetSwipe(el, close){
+  let sx = 0, sy = 0, st = 0, dy = 0, on = false, track = false, block = false;
+  const set = (y, anim) => { el.style.transition = anim ? 'transform .22s ease' : 'none'; el.style.transform = y ? 'translateY(' + y + 'px)' : ''; };
+  const begin = (x, y) => { sx = x; sy = y; st = performance.now(); dy = 0; on = false; track = true; };
+  const move = (x, y) => {
+    if (!track) return false;
+    const d = y - sy, ax = Math.abs(x - sx);
+    if (!on) {
+      if (el.scrollTop > 0 || d < -6 || (ax > 14 && ax > d)) { track = false; return false; }
+      if (d < 8) return false;
+      on = true;
+    }
+    dy = Math.max(0, d); set(dy); return true;
+  };
+  const end = () => {
+    track = false; if (!on) return; on = false;
+    block = true; setTimeout(() => { block = false; }, 60);
+    const v = dy/Math.max(1, performance.now() - st);
+    if (dy > 110 || (v > 0.5 && dy > 40)) { set(el.offsetHeight, true); setTimeout(() => { close(); set(0); }, 220); }
+    else set(0, true);
+  };
+  el.addEventListener('touchstart', e => { if (e.touches.length === 1) begin(e.touches[0].clientX, e.touches[0].clientY); else track = false; }, {passive:true});
+  el.addEventListener('touchmove', e => { if (move(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); }, {passive:false});
+  el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+  el.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button === 0) begin(e.clientX, e.clientY); });
+  addEventListener('pointermove', e => { if (e.pointerType === 'mouse') move(e.clientX, e.clientY); });
+  addEventListener('pointerup', e => { if (e.pointerType === 'mouse') end(); });
+  el.addEventListener('click', e => { if (block) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+sheetSwipe($('shop'), () => { $('shop').hidden = true; });
+sheetSwipe($('elev'), () => { $('elev').hidden = true; });
+sheetSwipe($('profSheet'), () => closeProfiles());
 
 // ---------- asansör ----------
 // Dikey kuyu haritası: tekne en üstte, 11 kat sırayla. Açık istasyona tek dokunuşla gidilir;

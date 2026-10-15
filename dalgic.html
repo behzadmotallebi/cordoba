@@ -173,7 +173,8 @@ body.boss #msg{top:calc(env(safe-area-inset-top,0px) + 104px)}
 /* sheets */
 #shop{min-height:min(70%,560px)}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 120px),var(--scan),#06172a;border-top:1px solid var(--hair);border-radius:22px 22px 0 0;padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 18px);max-height:84%;overflow:auto;box-shadow:0 -16px 44px rgba(0,0,0,.6)}
-.sheet::before{content:'';display:block;width:44px;height:4px;border-radius:2px;background:var(--hair-soft);margin:0 auto 12px}
+.sheet::before{content:'';display:block;width:48px;height:5px;border-radius:3px;background:rgba(230,244,247,.35);margin:0 auto 12px}
+.sheet{overscroll-behavior:contain;touch-action:pan-y}
 .sheethead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 auto 14px;max-width:640px}
 .sheethead h2{font-family:var(--f-display);font-weight:400;font-size:26px;margin:0;min-width:0;color:var(--foam);letter-spacing:.02em;line-height:1}
 .sheethead small{display:block;font-family:var(--f-ui);font-size:11px;letter-spacing:.16em;color:var(--acc-hi);margin-top:6px}
