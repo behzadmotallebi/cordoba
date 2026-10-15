@@ -17,8 +17,8 @@ const lerp = (a, b, k) => a + (b - a)*k;
 const mix = (c1, c2, k) => c1.map((v, i) => lerp(v, c2[i], k));
 
 // ---------- dünya geometrisi ----------
-// Kat yüksekliği (px): ilk kat kısa (3.900), her kat bir öncekinden %30 uzun (son kat ~53.800).
-const LH = i => Math.round(3900*Math.pow(1.3, i));
+// Kat yüksekliği (px): oran 1 / 1,5 / 2, sonra her kat +0,25 (20 m, 30 m, 40 m, 45 m, 50 m ... gibi). Kat 1: 3.900, kat 11: 15.600.
+const LH = i => Math.round(3900*(i < 3 ? 1 + 0.5*i : 2 + 0.25*(i - 2)));
 const LTOP = []; let WORLD_H = 0;
 for (let i = 0; i < NL; i++) { LTOP.push(WORLD_H); WORLD_H += LH(i); }
 const LBOT = i => LTOP[i] + LH(i);
