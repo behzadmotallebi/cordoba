@@ -312,8 +312,38 @@ function diver(ctx, x, y, bulk, tier){
   const w = c.w, h = w*r.h/r.w, k = curScale(ctx), bm = bitmap(r, w*k, false);
   const sp = clamp(Math.hypot(D.vx || 0, D.vy || 0)/110, 0.25, 1);
   cols(ctx, bm, c.x0, c.cy - h/2, w, h, stripsFor(w*k), 3.2*sp, (D.kick || 0)*3, 3.2, 0.5, 0);
+  gearOn(ctx, tier|0, k);
   ctx.restore();
   return true;
+}
+// Alınan ekipman dalgıcın üstünde görünür (o katın dükkân çizimi): sırtta tüp, belde çanta, kaskta fener,
+// ayakta palet (5. kattan sonra scooter), zırhta kalkan ışıltısı. Seviye arttıkça büyür. Yerel çerçeve: baş +x, sırt -y.
+const GEAR_AT = {
+  tank:  {x:-6,  y:-12, s:18, ds:2.5, rot:Math.PI/2},
+  bag:   {x:-12, y:9,   s:10, ds:1.5, rot:0.2},
+  light: {x:17,  y:-13, s:8,  ds:1,   rot:0},
+  speed: {x:8,   y:10,  s:15, ds:2,   rot:0},   // sadece scooter katlarında (palet zaten çizimde)
+};
+function gearOn(ctx, tier, k){
+  const sv = DG.S && DG.S.save; if (!sv || !sv.lv) return;
+  for (const t in GEAR_AT) {
+    const lv = sv.lv[t] | 0; if (!lv) continue;
+    const r = SPR['gear_' + t + '_' + tier]; if (!r) continue;
+    const g = GEAR_AT[t];
+    if (t === 'speed' && tier < 5) continue;
+    const size = g.s + g.ds*lv, big = Math.max(r.w, r.h), w = size*r.w/big, h = size*r.h/big;
+    ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(g.rot);
+    ctx.drawImage(bitmap(r, w*k, false), -w/2, -h/2, w, h);
+    ctx.restore();
+  }
+  const ar = sv.lv.armor | 0;
+  if (ar) {
+    const tt = DG.S.t || 0, a = 0.06 + 0.05*ar + 0.04*Math.sin(tt*3);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(120,220,255,' + a.toFixed(3) + ')'; ctx.lineWidth = 1.2 + 0.4*ar;
+    ctx.beginPath(); ctx.ellipse(-2, -1, 34, 14 + 1.5*ar, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // ---------- elde silah ----------

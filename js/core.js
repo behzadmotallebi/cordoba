@@ -68,6 +68,8 @@ function defaultSave(){
     relics:[], station:0, best:0, dives:0, kills:0, bossDone:false, endSeen:false, muted:false, earned:0, hints:{}, ctrl:1, ng:0,
     killed:{}, cleared:[],   // killed[kat] = öldürülen liste sırası (m.rid) dizisi; cleared = temizlenen katlar
     taken:{},                // taken[kat] = satılmış hazinelerin sıra numaraları (bir daha çıkmaz)
+    secrets:[],              // gizemi bulunan katlar
+    daily:{last:'', streak:0}, playT:0,   // günlük ödül; toplam oynama süresi (sn)
     signal:false, doorOpened:false, teaserSeen:false};   // finalden sonra dipteki gizli kapı: sinyal, açıldı mı, fragman izlendi mi
 }
 const save = defaultSave();
@@ -124,7 +126,10 @@ const prof = () => profiles.find(p => p.id === activeId) || null;
 const persistIndex = () => lsSet(P_INDEX, JSON.stringify(profiles));
 // Sınırsız para (demo) sadece geliştirici modunda: adresin sonuna #dev eklenince. Oyuncu hep gerçek ekonomiyle oynar.
 const DEV = location.hash === '#dev';
-let demo = DEV && lsGet(DEMO_FLAG) === '1';
+// Gizli kod: "gmbehzad" adlı kaptan sınırsız parayla oynar (kendi ayrı kaydı).
+const gm = () => { const p = prof(); return !!p && p.name.toLocaleLowerCase('tr-TR') === 'gmbehzad'; };
+const calcDemo = () => (DEV && lsGet(DEMO_FLAG) === '1') || gm();
+let demo = calcDemo();
 // Kaptan yokken (ilk açılış) aktarılmamış eski kayıt okunur ki giriş "Devam et" desin; ama hiçbir şey yazılmaz.
 const saveKey = () => activeId ? pKey(activeId) + (demo ? '.demo' : '') : lsGet(P_MIGRATED) ? null : (demo ? LEGACY_DEMO_KEY : LEGACY_KEY);
 const canAfford = c => demo || save.money >= c;
@@ -148,6 +153,9 @@ function mergeSave(s){
   save.killed = {};
   if (s.killed && typeof s.killed === 'object') for (const k in s.killed) { const L = k|0, a = s.killed[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.killed[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
   save.cleared = Array.isArray(s.cleared) ? [...new Set(s.cleared.filter(i => i >= 0 && i < NL))] : [];
+  save.secrets = Array.isArray(s.secrets) ? [...new Set(s.secrets.filter(i => Number.isInteger(i) && i >= 0 && i < NL))] : [];
+  save.daily = s.daily && typeof s.daily === 'object' ? {last:String(s.daily.last || ''), streak:Math.max(0, s.daily.streak|0)} : {last:'', streak:0};
+  save.playT = Math.max(0, +s.playT || 0);
   save.taken = {};
   if (s.taken && typeof s.taken === 'object') for (const k in s.taken) { const L = k|0, a = s.taken[k]; if (L >= 0 && L < NL && Array.isArray(a)) save.taken[L] = [...new Set(a.filter(n => Number.isInteger(n) && n >= 0))]; }
   if (!WEAPONS.some(w => w.id === save.curWpn && save.wpn[w.id] != null)) save.curWpn = 'spear';
@@ -195,6 +203,7 @@ function createProfile(raw, fallback){
 }
 // Kaydı yerinde baştan kurar (demo düğmesiyle aynı yol): dünya, canavar listeleri, tema (art.js her karede), HUD, dükkân.
 function reloadSave(){
+  demo = calcDemo();
   for (const k of Object.keys(save)) delete save[k];
   Object.assign(save, defaultSave()); load();
   if (DG.wpn && DG.wpn.reset) DG.wpn.reset();
@@ -377,25 +386,41 @@ function shopTotal(L){
   for (const sk of SKILLS) if (sk.unlock === L && sk.id !== 'dash') t += priceUnit(sk.unlock)*D.SKILL_COST.reduce((a, b) => a + b, 0);
   return t;
 }
-const LOOT_K = 2.2;   // katın hazinelerinin toplam değeri = dükkân toplamı x 2,2 (canavar ödülleri ayrıca)
-// Hazineler sabit: kat (ve Yeni Sefer+ turu) tohumuyla hep aynı yerde. Satılan bir daha çıkmaz (save.taken);
+// Katın hazinelerinin toplam değeri = dükkân toplamı x 2,2 (canavar ödülleri ayrıca); gizem: dükkân toplamı kadar, tek seferde.
+const LOOT_K = 2.2, SECRET_K = 1.0;
+// Hazinelerin listesi (sayı, tür, değer) kat tohumuyla sabit, yerleri her dalışta rastgele. Satılan bir daha çıkmaz (save.taken);
 // bayılınca çantadakiler satılmadığı için denize geri döner. Canavarlar da yeniden doğmaz (spawnMons).
 function generate(){
   S.items = []; S.glowSpots = [];
   for (let L = 0; L <= save.tier; L++) {
     const ly = LAYERS[L], top = LTOP[L], h = LH(L), gk = h/4000, r = seeded(L*7907 + 31 + save.ng*1031);
-    const rr = (a, b) => a + r()*(b - a), list = [];
+    // Liste (kaç parça, hangi tür, değeri) tohumlu ve sabit; yerleri her dalışta kendi derinlik bandında rastgele.
+    const rr = (a, b) => a + r()*(b - a), list = [], BAND = [[0, 0.34], [0.34, 0.67], [0.67, 1]];
     for (let y = top + 60; y < top + h - 60; y += rr(22, 40)) {
       const f = (y - top)/h;
       let tier = f < 0.34 ? 0 : f < 0.67 ? 1 : 2;
       if (tier < 2 && r() < 0.07) tier++;
-      const [lo, hi] = boundsAt(y), x = rr(lo + 14, hi - 14), pick = r(), w = [1,3,8][tier]*(1 + 1.5*f)*rr(0.85, 1.15), ph = rr(0, 6.28);
-      if (hi - lo < 60 || inLedge(x, y) || ledgeAt(y)) continue;
-      list.push({def:ly.items[tier][pick < 0.6 ? 0 : 1], tier, L, x, y, w, ph});
+      list.push({def:ly.items[tier][r() < 0.6 ? 0 : 1], tier, w:[1,3,8][tier]*(1 + 1.5*f)*rr(0.85, 1.15)});
     }
     const sum = list.reduce((a, it) => a + it.w, 0) || 1, k = LOOT_K*shopTotal(L)/sum;
     const gone = new Set(Array.isArray(save.taken[L]) ? save.taken[L] : []);
-    list.forEach((it, i) => { if (!gone.has(i)) S.items.push({def:it.def, tier:it.tier, L, id:i, x:it.x, y:it.y, value:it.w*k*mods.value, ph:it.ph, taken:false}); });
+    list.forEach((it, i) => {
+      if (gone.has(i)) return;
+      const [b0, b1] = BAND[it.tier];
+      for (let tr = 0; tr < 8; tr++) {
+        const y = clamp(top + h*rand(b0, b1), top + 60, top + h - 60), [lo, hi] = boundsAt(y), x = rand(lo + 14, hi - 14);
+        if (hi - lo < 60 || inLedge(x, y) || ledgeAt(y)) continue;
+        S.items.push({def:it.def, tier:it.tier, L, id:i, x, y, value:it.w*k*mods.value, ph:rand(0, 6.28), taken:false});
+        break;
+      }
+    });
+    // Gizem: katta tek, duvara gizlenmiş, çok değerli; yeri her dalışta değişir. Yakına gelince ya da sonarla görünür.
+    if (!save.secrets.includes(L)) for (let tr = 0; tr < 12; tr++) {
+      const y = top + h*rand(0.12, 0.92), side = Math.random() < 0.5 ? 0 : 1, x = side ? WORLD_W - wallW(y, 1) - 16 : wallW(y, 0) + 16;
+      if (ledgeAt(y) || isSafeAny(x, y)) continue;
+      S.items.push({secret:true, L, x, y, value:nice(SECRET_K*shopTotal(L)*mods.value), ph:rand(0, 6.28), taken:false});
+      break;
+    }
     if (!save.relics.includes(L) && !(S.relicHeld === L)) S.items.push(placeRelic(L));
     const bot = L === NL - 1 ? WORLD_H : LTOP[L + 1];
     if (ly.decor === 'vents') for (let i = 0; i < Math.round(6*gk); i++) S.glowSpots.push({x:120 + (i%6)*230 + rand(-30, 30), y:top + h*rand(0.1, 0.95), r:130, c:'255,110,40'});
@@ -505,6 +530,10 @@ function fillEnd(){
   const p = prof();
   $('eName').textContent = 'Tebrikler, ' + (p ? p.name : 'dalgıç') + '!';
   $('eDives').textContent = save.dives; $('eMoney').textContent = demo ? '∞' : fmtMoney(save.money); $('eKills').textContent = save.kills;
+  const mins = Math.floor(save.playT/60);
+  $('eTime').textContent = Math.floor(mins/60) + ':' + String(mins%60).padStart(2, '0');
+  $('eBest').textContent = fmtM(save.best); $('eEarned').textContent = fmtMoney(save.earned);
+  $('eSecrets').textContent = save.secrets.length + '/' + NL;
   $('eTeaser').hidden = !save.teaserSeen;
 }
 function bossLost(){
@@ -1019,7 +1048,7 @@ function newGamePlus(){
   spend(c);
   save.ng++; save.tier = 0; save.relics = []; save.bossDone = false; save.endSeen = false; save.station = 0;
   save.signal = false; save.doorOpened = false;   // teaserSeen kalır (girişten tekrar izlenebilir)
-  save.killed = {}; save.cleared = []; save.taken = {};
+  save.killed = {}; save.cleared = []; save.taken = {}; save.secrets = [];
   for (const k of TRACKS) save.lv[k] = 0;
   $('elev').hidden = true;
   setup(); persist();
@@ -1200,6 +1229,78 @@ $('profFirst').addEventListener('submit', e => { e.preventDefault(); $('startBtn
 $('profFirstIn').addEventListener('input', () => { $('profFirstErr').textContent = ''; });
 $('teaserIntro').addEventListener('click', () => playTeaser(null));
 
+// ---------- günlük ödül ----------
+// Her gün ilk girişte. Seri (art arda günler) 7 güne kadar ödülü büyütür; bir gün atlanırsa seri 1'e döner.
+const dayStr = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+let dailyPend = null;
+function showDaily(){
+  if (!S.playing || S.riding || !$('relicCard').hidden || !$('bossCard').hidden || !$('endCard').hidden || !$('teaser').hidden) return;
+  const now = new Date(), today = dayStr(now), y = new Date(now); y.setDate(now.getDate() - 1);
+  if (save.daily.last === today) return;
+  const streak = save.daily.last === dayStr(y) ? save.daily.streak + 1 : 1, step = Math.min(streak, 7);
+  const amt = nice(0.08*shopTotal(save.tier)*(1 + 0.2*(step - 1)));
+  dailyPend = {today, streak, amt};
+  $('dTitle').textContent = 'Gün ' + streak;
+  const dd = $('dDays'); dd.textContent = '';
+  for (let i = 1; i <= 7; i++) { const b = el('i', i < step ? 'on' : i === step ? 'on today' : '', String(i)); dd.appendChild(b); }
+  $('dAmt').textContent = '+' + fmtMoney(amt);
+  $('dNote').textContent = step < 7 ? 'Yarın gel: seri büyüdükçe ödül büyür (7. güne kadar).' : 'Tam seri! Her gün en büyük ödül.';
+  S.playing = false; $('dailyCard').hidden = false; sfx('relic');
+}
+$('dBtn').addEventListener('click', () => {
+  const d = dailyPend; dailyPend = null; $('dailyCard').hidden = true; S.playing = true;
+  if (!d) return;
+  save.daily = {last:d.today, streak:d.streak};
+  if (!demo) save.money += d.amt;
+  save.earned += d.amt; persist(); sfx('sell'); buzz(40);
+  msg('Günlük ödül: +' + fmtMoney(d.amt), 'var(--amber)');
+});
+
+// ---------- kayıt yedeği (telefon değişince ya da silmeden önce) ----------
+const bkMsg = t => { $('bkMsg').textContent = t; };
+$('bkCopy').addEventListener('click', () => {
+  const p = prof(); if (!p) { bkMsg('Önce bir kaptan seç.'); return; }
+  persist();
+  const code = 'DLG1:' + btoa(unescape(encodeURIComponent(JSON.stringify({v:1, n:p.name, s:lsGet(saveKey())}))));
+  const fallback = () => { const i = $('bkIn'); i.value = code; i.focus(); i.select(); bkMsg('Kod kutuya yazıldı: seçip kopyala ve bir yere kaydet.'); };
+  try { navigator.clipboard.writeText(code).then(() => bkMsg('Yedek kodu kopyalandı. Notlara ya da kendine mesaj olarak kaydet.'), fallback); } catch (e) { fallback(); }
+});
+$('bkLoad').addEventListener('click', () => {
+  const v = $('bkIn').value.trim();
+  let d = null;
+  try { if (v.startsWith('DLG1:')) d = JSON.parse(decodeURIComponent(escape(atob(v.slice(5))))); } catch (e) { d = null; }
+  let sv = null; try { sv = d && JSON.parse(d.s); } catch (e) { sv = null; }
+  if (!sv || sv.v !== 3) { bkMsg('Bu kod okunamadı. Kodun tamamını yapıştırdığından emin ol.'); return; }
+  let name = cleanName(d.n) || 'Dalgıç', base = name, n = 2;
+  while (profiles.some(p => nameKey(p.name) === nameKey(name))) name = (base.slice(0, 13) + ' ' + n++).trim();
+  const r = createProfile(name); if (r.err) { bkMsg(r.err); return; }
+  lsSet(pKey(r.p.id), d.s);
+  r.p.tier = clamp(sv.tier|0, 0, NL - 1); r.p.money = Math.floor(+sv.money || 0); r.p.best = Math.round(+sv.best || 0); r.p.won = !!sv.bossDone; persistIndex();
+  $('bkIn').value = ''; switchProfile(r.p.id); renderProfiles();
+  bkMsg('Yedek geri yüklendi: ' + name);
+});
+
+// ---------- Android geri tuşu ----------
+// Sıra: açık pencere/kart kapanır; oyundaysan menüye döner; menüde iki kez basınca çıkar.
+let backT = 0;
+const capApp = () => window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+function onBack(){
+  if (!$('teaser').hidden) { closeTeaser(); return; }
+  if (!$('profSheet').hidden) { closeProfiles(); return; }
+  if (!$('wpnPick').hidden) { closePick(); return; }
+  if (!$('shop').hidden) { $('shop').hidden = true; return; }
+  if (!$('elev').hidden) { $('elev').hidden = true; return; }
+  if (!$('dailyCard').hidden) { $('dBtn').click(); return; }
+  if (!$('relicCard').hidden) { $('rcBtn').click(); return; }
+  if (!$('endCard').hidden) { $('endBtn').click(); return; }
+  if (!$('bossCard').hidden || S.riding) return;
+  if ($('intro').hidden) { S.playing = false; persist(); syncDemoBtn(); $('startBtn').textContent = 'Devam et'; $('intro').hidden = false; return; }
+  if (Date.now() - backT < 2000) { const a = capApp(); if (a && a.exitApp) a.exitApp(); return; }
+  backT = Date.now();
+  const h = $('backHint'); h.hidden = false; clearTimeout(onBack.t); onBack.t = setTimeout(() => { h.hidden = true; }, 2000);
+}
+{ const a = capApp(); if (a && a.addListener) a.addListener('backButton', onBack); }
+
 $('startBtn').addEventListener('click', () => {
   if (!activeId) {
     const r = createProfile($('profFirstIn').value, 'Dalgıç');
@@ -1211,6 +1312,7 @@ $('startBtn').addEventListener('click', () => {
   const z0 = stationZone(), L0 = z0 > 0 ? z0 : layerOf(diver.y);
   toast(LAYERS[L0].name, 'KAT ' + (L0 + 1) + ' / ' + NL);
   hint('move', 'Ekrana dokun ve sürükle: dalgıç parmağının yönüne yüzer.');
+  setTimeout(showDaily, 1300);
   if (save.relics.includes(NL - 1) && !save.bossDone) setTimeout(bossIntro, 600);
   else if (save.signal && !save.doorOpened) setTimeout(() => msg('Sinyal hâlâ geliyor: pusulayı izle, Atlantis\'in dibine in.', 'var(--relic)'), 900);
 });
@@ -1484,6 +1586,7 @@ function update(dt){
   // Derin istasyon kendi katının başı sayılır (dalgıç rafın 50 px üstünde, yani bir üst katta durur).
   const m = toM(diver.y), L = zone > 0 ? zone : layerOf(diver.y), maxO2 = gTank();
   if (S.playing) {
+    save.playT += dt;
     const over = diver.y > limitY() + 8;
     if (zone >= 0) { S.o2 = Math.min(maxO2, S.o2 + dt*maxO2/1.5); setHid($('warn'), true); }
     else {
@@ -1501,6 +1604,13 @@ function update(dt){
     for (const it of S.items) {
       if (it.taken || Math.abs(it.y - diver.y) > 40) continue;
       if (dist(it.x, it.y, diver.x, diver.y) < 26) {
+        if (it.secret) {
+          it.taken = true; save.secrets.push(it.L);
+          reward(it.value, it.x, it.y - 24, 'GİZEM');
+          sfx('relic'); buzz([60, 40, 160]); if (DG.fx && DG.fx.burst) DG.fx.burst(it.x, it.y, '#ff7af2', 24, 260);
+          toast('Gizem bulundu!', LAYERS[it.L].name.toLocaleUpperCase('tr-TR') + ' · +' + fmtMoney(it.value));
+          persist(); continue;
+        }
         if (it.relic) {
           if (S.relicHeld !== false) continue;
           it.taken = true; S.relicHeld = it.L; sfx('relic'); buzz(60);
@@ -1859,12 +1969,30 @@ function drawShape(s, c, x, y, time, scale){
   ctx.restore();
 }
 DG.U.drawShape = drawShape;
+// Gizem: yakında (130 px) ya da sonarla belirgin; uzaktan arada bir zayıf bir pırıltı.
+function secretVis(it){
+  if (DG.wpn && DG.wpn.sonarActive && DG.wpn.sonarActive()) return 1;
+  return clamp(1 - (dist(it.x, it.y, diver.x, diver.y) - 70)/60, 0, 1);
+}
+function drawSecret(it, sx, sy){
+  const v = secretVis(it), tw = Math.pow(Math.max(0, Math.sin(S.t*0.9 + it.ph)), 24);
+  const a = Math.max(v, 0.35*tw);
+  if (a < 0.02) return;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.translate(sx, sy); ctx.rotate(S.t*0.8);
+  ctx.fillStyle = '#ff7af2'; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const r = i%2 ? 4 : 11, an = i*Math.PI/4; ctx.lineTo(Math.cos(an)*r, Math.sin(an)*r); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, 7); ctx.fill();
+  ctx.restore();
+}
 function drawItems(){
   for (const it of S.items) {
     if (it.taken) continue;
     const sy = it.y - cam.y; if (sy < -40 || sy > S.H + 40) continue;
     const sx = it.x - cam.x; if (sx < -40 || sx > S.W + 40) continue;
     const by = sy + Math.sin(S.t*2 + it.ph)*2;
+    if (it.secret) { drawSecret(it, sx, by); continue; }
     if (!(it.relic && DG.art && DG.art.relic(ctx, it.L, sx, by, S.t + it.ph, 1.6))) drawShape(it.def.s, it.def.c, sx, by, S.t + it.ph, it.relic ? 1.6 : 1);
   }
 }
@@ -1975,7 +2103,12 @@ function drawItemGlows(alpha){
     if (it.taken) continue;
     const sy = it.y - cam.y; if (sy < -40 || sy > S.H + 40) continue;
     const sx = it.x - cam.x; if (sx < -40 || sx > S.W + 40) continue;
-    if (it.relic) {
+    if (it.secret) {
+      const v = secretVis(it); if (v < 0.05) continue;
+      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 50);
+      g.addColorStop(0, `rgba(255,120,240,${0.55*v})`); g.addColorStop(1, 'rgba(255,120,240,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 50, 0, 7); ctx.fill();
+    } else if (it.relic) {
       const tw = 0.5 + 0.5*Math.sin(S.t*3), g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 60);
       g.addColorStop(0, `rgba(160,230,255,${0.45 + 0.25*tw})`); g.addColorStop(1, 'rgba(90,216,255,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, 7); ctx.fill();
