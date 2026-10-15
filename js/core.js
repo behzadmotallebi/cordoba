@@ -341,6 +341,33 @@ function sfx(k){
 }
 function buzz(ms){ try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
+// ---------- müzik ----------
+// Kat grubuna göre döngü: kat 1-3 sığ, 4-7 karanlık, 8-11 abis; final dövüşünde ayrı parça.
+// Parça değişince ve parça sonuna XF sn kala (aynı parça baştan) çapraz geçiş. Ses kapalıyken ve fragmanda susar.
+const MUSIC = {sig:'assets/music/sig.mp3', orta:'assets/music/orta.mp3', abis:'assets/music/abis.mp3', boss:'assets/music/boss.mp3'};
+const MUS_VOL = 0.38, XF = 3;
+const mus = {on:false, key:null, cur:null, old:[]};
+function musPlay(src){ const e = new Audio(src); e.volume = 0; e.play().catch(() => {}); return e; }
+function musTarget(){
+  if (!mus.on || S.cine || document.hidden || save.muted) return null;
+  if (bossOn()) return 'boss';
+  const L = layerOf(diver.y);
+  return L <= 2 ? 'sig' : L <= 6 ? 'orta' : 'abis';
+}
+function musTick(dt){
+  const key = musTarget();
+  if (key !== mus.key) {
+    if (mus.cur) mus.old.push(mus.cur);
+    mus.key = key; mus.cur = key ? musPlay(MUSIC[key]) : null;
+  }
+  const c = mus.cur;
+  if (c && isFinite(c.duration) && c.duration > XF*3 && c.currentTime > c.duration - XF) { mus.old.push(c); mus.cur = musPlay(MUSIC[mus.key]); }
+  const k = Math.min(1, dt/XF)*MUS_VOL;
+  if (mus.cur) mus.cur.volume = Math.min(MUS_VOL, mus.cur.volume + k);
+  for (const e of mus.old) e.volume = Math.max(0, e.volume - k);
+  mus.old = mus.old.filter(e => { if (e.volume > 0.001) return true; e.pause(); e.removeAttribute('src'); return false; });
+}
+
 // ---------- mesajlar ----------
 let msgTimer = 0, zoneTimer = 0;
 function msg(text, color){
@@ -523,7 +550,7 @@ function signalEvent(){
   sfx('roar'); setTimeout(() => sfx('sonar'), 700); buzz([200, 80, 200]);
   if (DG.fx && DG.fx.shake) DG.fx.shake(6);
   msg('Derinlerden bir sinyal geliyor...', 'var(--relic)');
-  setTimeout(() => toast('Bir sinyal', 'ATLANTİS\'İN DİBİ · PUSULAYI İZLE'), 2700);
+  setTimeout(() => toast('Bir sinyal', 'OCEAN SECRET\'İN DİBİ · PUSULAYI İZLE'), 2700);
   const el = $('sig'); el.classList.remove('ping'); void el.offsetWidth; el.classList.add('ping');
 }
 function fillEnd(){
@@ -755,7 +782,7 @@ function goalStrip(){
   if (save.tier >= NL - 1) {
     box.appendChild(el('span', 'gl', save.bossDone ? 'Yeni Sefer+ için:' : 'Son kat:'));
     if (save.bossDone) { const c = ngCost(); box.appendChild(chip('Bilet ' + fmtMoney(c), canAfford(c))); }
-    else { box.appendChild(chip('Atlantis\'in Kalbi', save.relics.includes(NL - 1))); box.appendChild(chip('Final', false)); }
+    else { box.appendChild(chip('Ocean Secret\'in Kalbi', save.relics.includes(NL - 1))); box.appendChild(chip('Final', false)); }
     return box;
   }
   const done = TRACKS.filter(k => save.lv[k] >= 3).length;
@@ -1026,8 +1053,8 @@ function renderElev(){
       card.appendChild(btn('Yeni Sefer+ başlat', 'bigbuy', canAfford(c), newGamePlus, 'ngPlus'));
     } else {
       card.appendChild(el('span', 'lbl', 'SON KAT'));
-      card.appendChild(el('h3', null, 'Atlantis'));
-      card.appendChild(el('p', null, save.relics.includes(NL - 1) ? 'Atlantis\'in Kalbi elinde. Tekneye çık ve canavarla savaş.' : 'Atlantis\'in Kalbi bu katın en dibinde. Onu bir istasyona getir.'));
+      card.appendChild(el('h3', null, 'Ocean Secret'));
+      card.appendChild(el('p', null, save.relics.includes(NL - 1) ? 'Ocean Secret\'in Kalbi elinde. Tekneye çık ve canavarla savaş.' : 'Ocean Secret\'in Kalbi bu katın en dibinde. Onu bir istasyona getir.'));
     }
     body.appendChild(card);
   }
@@ -1126,7 +1153,7 @@ function relicCard(L){
 function bossIntro(){
   $('bcEyebrow').textContent = 'DERİNLERDEN BİR ŞEY UYANDI';
   $('bcTitle').textContent = 'Ganimetini istiyor';
-  $('bcText').textContent = 'Atlantis\'in Kalbi asansörle tekneye çıkarken çukurun dibinde dev bir gölge kıpırdadı. Hazinelerini geri almak için tekneye doğru yükseliyor. Gemiyi koru!';
+  $('bcText').textContent = 'Ocean Secret\'in Kalbi asansörle tekneye çıkarken çukurun dibinde dev bir gölge kıpırdadı. Hazinelerini geri almak için tekneye doğru yükseliyor. Gemiyi koru!';
   $('bcBtn').textContent = 'Tekneye çık ve savaş';
   S.playing = false; $('bossCard').hidden = false;
 }
@@ -1201,7 +1228,7 @@ function renderProfiles(){
     inf.append(nm);
     if (cur && !del) { const t = document.createElement('em'); t.className = 'here'; t.textContent = 'ŞU AN'; inf.append(t); }
     inf.append(st);
-    if (p.won && !del) { const t = document.createElement('span'); t.className = 'pwon'; t.textContent = p.door ? 'ATLANTİS · KAPI AÇILDI' : 'ATLANTİS FETHEDİLDİ'; inf.append(t); }
+    if (p.won && !del) { const t = document.createElement('span'); t.className = 'pwon'; t.textContent = p.door ? 'OCEAN SECRET · KAPI AÇILDI' : 'OCEAN SECRET FETHEDİLDİ'; inf.append(t); }
     const acts = document.createElement('div'); acts.className = 'pacts';
     if (del) {
       acts.append(pbtn('Vazgeç', 'pbtn', () => { profDel = null; renderProfiles(); }),
@@ -1308,16 +1335,16 @@ $('startBtn').addEventListener('click', () => {
     switchProfile(r.p.id);
   }
   const p = prof(); if (p) { p.last = Date.now(); persistIndex(); }
-  audio(); $('intro').hidden = true; S.playing = true;
+  audio(); mus.on = true; $('intro').hidden = true; S.playing = true;
   const z0 = stationZone(), L0 = z0 > 0 ? z0 : layerOf(diver.y);
   toast(LAYERS[L0].name, 'KAT ' + (L0 + 1) + ' / ' + NL);
   hint('move', 'Ekrana dokun ve sürükle: dalgıç parmağının yönüne yüzer.');
   setTimeout(showDaily, 1300);
   if (save.relics.includes(NL - 1) && !save.bossDone) setTimeout(bossIntro, 600);
-  else if (save.signal && !save.doorOpened) setTimeout(() => msg('Sinyal hâlâ geliyor: pusulayı izle, Atlantis\'in dibine in.', 'var(--relic)'), 900);
+  else if (save.signal && !save.doorOpened) setTimeout(() => msg('Sinyal hâlâ geliyor: pusulayı izle, Ocean Secret\'in dibine in.', 'var(--relic)'), 900);
 });
 
-// ---------- gizli kapı (finalden sonra, Atlantis'in dibi) ----------
+// ---------- gizli kapı (finalden sonra, Ocean Secret'in dibi) ----------
 const DOOR_R = 104, DOOR = {x:BOAT_X, y:WORLD_H - DOOR_R - 14};
 const doorOn = () => !!save.signal;
 function doorTick(){
@@ -1721,7 +1748,7 @@ function nextGoal(){
     for (const k of PRI) { const lv = save.lv[k]; if (lv < 3) { const c = upCost(k, lv + 1), e = c*(k === 'light' && dim ? 3 : 1); if (!best || e < best.e*0.75) best = {k, c, e}; } }
     return {txt:'SIRADAKİ: ' + TRACK_LABEL[best.k] + ' ' + fmtMoney(best.c), f:demo ? 1 : save.money/best.c};
   }
-  if (!relicDone()) return {txt:save.tier === NL - 1 ? 'HEDEF: ATLANTİS\'İN KALBİ' : 'HEDEF: KATIN ESERİ · ' + fmtM(LAYERS[save.tier].bot), f:clamp(save.best/LAYERS[save.tier].bot, 0, 1)};
+  if (!relicDone()) return {txt:save.tier === NL - 1 ? 'HEDEF: OCEAN SECRET\'İN KALBİ' : 'HEDEF: KATIN ESERİ · ' + fmtM(LAYERS[save.tier].bot), f:clamp(save.best/LAYERS[save.tier].bot, 0, 1)};
   if (save.tier < NL - 1) return {txt:'HEDEF: ASANSÖRLE YENİ KAT', f:1};
   return {txt:'HEDEF: FİNAL CANAVARI', f:1};
 }
@@ -2269,6 +2296,7 @@ let last = performance.now();
 function frame(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now;
   // Fragman açıkken oyun durur ve çizilmez (telefonda video akıcı kalsın).
+  try { musTick(dt); } catch (e) {}
   if (!S.cine) try { update(dt); render(); } catch (e) { console.error(e); }
   requestAnimationFrame(frame);
 }

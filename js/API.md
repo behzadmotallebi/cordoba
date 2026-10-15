@@ -136,7 +136,7 @@ Veri: `DG.data.WEAPONS`, `DG.data.SKILLS`. Seviye çarpanı: silah hasarı × (1
 
 ## `DG.boss` (js/boss.js) final canavarı
 
-Tetik: oyuncu Atlantis'in Kalbi'ni bir istasyona getirir → çekirdek kartı gösterir → oyuncu tekneye çıkar → `DG.boss.start()`.
+Tetik: oyuncu Ocean Secret'in Kalbi'ni bir istasyona getirir → çekirdek kartı gösterir → oyuncu tekneye çıkar → `DG.boss.start()`.
 Dövüş yüzeyde, teknenin çevresinde (y ≈ 0..900). Karanlık kapalıdır (`active()` true iken).
 - `start()` dövüşü (yeniden) başlatır: canavar derinden tekneye doğru yükselir. Gemi canı 100.
 - `update(dt)`, `draw(ctx)`, `drawGlow(ctx, a)`, `lights()`, `active()` → bool, `reset()` (sayfa açılışında).

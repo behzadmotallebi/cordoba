@@ -1,5 +1,5 @@
 /* Dalgıç: final canavarı "Derinlerin Efendisi" (DG.boss).
-   Atlantis'in Kalbi tekneye çıkınca çukurdan yükselir: zırhlı baş, üç göz, kızıl yele, otuz boğumlu gövde, dokunaçlar.
+   Ocean Secret'in Kalbi tekneye çıkınca çukurdan yükselir: zırhlı baş, üç göz, kızıl yele, otuz boğumlu gövde, dokunaçlar.
    Evre 1: teknenin altında döner, tekneye toslar (gözleri parlarken yeterince vurulursa sersemler), dokunaçla savurur.
    Evre 2 (%66): engerek sürüsü, mürekkep tükürüğü, tekneyi saran dokunaç.
    Evre 3 (%33): öfke. Daha sık toslama, dalgıcı yakalayan dokunaçlar, ısırma hamlesi, kükreme. */
@@ -1272,7 +1272,7 @@ function drawGlow(ctx){
       ctx.strokeStyle = rgba([255, 80, 40], (0.35 + 0.2*Math.sin(T*6))*enr*dimK); ctx.lineWidth = 3; ctx.stroke(ep);
     }
   }
-  // ölüm: kırılan boğumlardan Atlantis ışığı sızar
+  // ölüm: kırılan boğumlardan Ocean Secret ışığı sızar
   if (st === 'dying' || st === 'gone') {
     const fade = st === 'gone' ? 0 : clamp(1.4 - Math.max(0, dieT - 5)/6, 0, 1);
     for (let i = 0; i < N; i++) {

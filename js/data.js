@@ -64,11 +64,11 @@ const LAYERS = [
     mons:[['viper',0,1,1.0],['angler',0,1,1.0],['squid',0,1,0.9],['serpent',0.2,1,0.65],['octopus',0,1,0.5]],
     obst:[['vent',0.3,0.97,0.15]],
     items:[[I('Cam süngeri','coral','#d8f0ff'),I('Işıklı kabuk','shell','#60ffd0')],[I('Meteor parçası','ingot','#4a4a55'),I('Yıldız tozu','crystal','#b08aff')],[I('Siyah elmas','diamond','#55556a'),I('Garip küre','pearl','#c28aff')]],
-    relic:{n:'Kalipso İncisi', s:'pearl', c:'#f2f6ff', lore:'Akdeniz\'in en derin noktasından. İncinin içinde bir kapı çizili; çukurun dibindeki çatlaktan mavi bir ışık sızıyor. Atlantis gerçek.', bonus:{k:'value', v:0.2}}},
-  {name:'Atlantis', top:5267, bot:6500, wall:140, rock:[30,40,70], waterBot:[8,18,60], decor:'atlantis',
+    relic:{n:'Kalipso İncisi', s:'pearl', c:'#f2f6ff', lore:'Akdeniz\'in en derin noktasından. İncinin içinde bir kapı çizili; çukurun dibindeki çatlaktan mavi bir ışık sızıyor. Ocean Secret gerçek.', bonus:{k:'value', v:0.2}}},
+  {name:'Ocean Secret', top:5267, bot:6500, wall:140, rock:[30,40,70], waterBot:[8,18,60], decor:'atlantis',
     mons:[['viper',0,1,1.0],['squid',0,1,0.8],['serpent',0,1,0.6],['guardian',0.2,1,0.9],['mimic',0,1,0.4]],
-    items:[[I('Orikalkum sikke','coin','#ff9a4a'),I('Kristal kiremit','crystal','#7fe8ff')],[I('Atlantis tableti','tablet','#4aa0ff'),I('Tapınak kandili','amphora','#ffd24a')],[I('Hazine sandığı','chest','#3a5a8a'),I('Kraliyet tacı','crown','#ffd24a')]],
-    relic:{n:'Atlantis\'in Kalbi', s:'heart', c:'#ffd86a', lore:'Derinlerin Kalbi\'nin büyük kardeşi. Avucunda atıyor. Onu aldığın an, çukurun dibinde bir şey gözlerini açtı.', bonus:{k:'value', v:0.5}}},
+    items:[[I('Orikalkum sikke','coin','#ff9a4a'),I('Kristal kiremit','crystal','#7fe8ff')],[I('Ocean Secret tableti','tablet','#4aa0ff'),I('Tapınak kandili','amphora','#ffd24a')],[I('Hazine sandığı','chest','#3a5a8a'),I('Kraliyet tacı','crown','#ffd24a')]],
+    relic:{n:'Ocean Secret\'in Kalbi', s:'heart', c:'#ffd86a', lore:'Derinlerin Kalbi\'nin büyük kardeşi. Avucunda atıyor. Onu aldığın an, çukurun dibinde bir şey gözlerini açtı.', bonus:{k:'value', v:0.5}}},
 ];
 // Her katın üst rengi bir üstteki katın alt rengidir: deniz kesintisiz görünür.
 for (let i = 1; i < LAYERS.length; i++) LAYERS[i].water = LAYERS[i - 1].waterBot;
@@ -88,10 +88,10 @@ const SHIPS = [
 ];
 
 const GEAR = {
-  tank:  ['Alüminyum tüp','Çelik tüp','Çift tüp seti','Nitroks seti','Trimiks seti','Yarı kapalı devre','Kapalı devre rebreather','Askeri rebreather','Heliox sistemi','Yaşam destek modülü','Atlantis solungacı'],
+  tank:  ['Alüminyum tüp','Çelik tüp','Çift tüp seti','Nitroks seti','Trimiks seti','Yarı kapalı devre','Kapalı devre rebreather','Askeri rebreather','Heliox sistemi','Yaşam destek modülü','Ocean Secret solungacı'],
   speed: ['Plastik palet','Uzun palet','Jet palet','Monopalet','Bilek iticisi','Su altı scooter\'ı','Çift motorlu scooter','Turbo scooter','Sırt hidrojeti','Manyetik itici','Yunus kanatları'],
   bag:   ['File çanta','Brandalı çanta','Kaldırma ağı','Numune sepeti','Hidrolik kasa','Vakum toplayıcı','Robot kollu kasa','Basınçlı kargo modülü','Manyetik kasa','Mini kargo denizaltısı','Kristal hazne'],
-  light: ['El feneri','Kafa lambası','LED projektör','Çift HID lamba','Sinema ışığı','Sonar gözlük','Gece görüş maskesi','Termal kamera','Lazer tarayıcı','Biyoışık kapsülü','Atlantis kristali'],
+  light: ['El feneri','Kafa lambası','LED projektör','Çift HID lamba','Sinema ışığı','Sonar gözlük','Gece görüş maskesi','Termal kamera','Lazer tarayıcı','Biyoışık kapsülü','Ocean Secret kristali'],
   suit:  ['3 mm neopren','7 mm neopren','Kuru giysi','Isıtmalı kuru giysi','Kompozit giysi','Doygunluk giysisi','Basınç zırhı','Titanyum zırh','Atmosferik dalış giysisi','Abis dış iskeleti','Mercan zırh'],
   armor: ['Dalış eldiveni','Kevlar kolluk','Zincir örgü zırh','Elektrikli kalkan yeleği','Sonik kovucu','Karbon kask','Plazma kalkan','Titanyum kabuk','Ses dalgası kalkanı','Kuvvet alanı','Poseidon kalkanı'],
 };
@@ -106,7 +106,7 @@ const MON = {
   viper:   {n:'Engerek balığı',    hp:1, dmg:0.06, bounty:3,  r:9,  spd:1.25, aggro:240, eye:'#99ccff'},
   squid:   {n:'Dev kalamar',       hp:5, dmg:0.18, bounty:20, r:30, spd:0.7,  aggro:340, eye:'#ffd23a'},
   serpent: {n:'Deniz yılanı',      hp:8, dmg:0.25, bounty:40, r:20, spd:1.08, aggro:480, eye:'#ff3b2f'},
-  guardian:{n:'Atlantis bekçisi',  hp:6, dmg:0.22, bounty:30, r:24, spd:1.0,  aggro:360, eye:'#5af0ff'},
+  guardian:{n:'Ocean Secret bekçisi',  hp:6, dmg:0.22, bounty:30, r:24, spd:1.0,  aggro:360, eye:'#5af0ff'},
   mimic:   {n:'Sandık taklitçisi', hp:4, dmg:0.18, bounty:14, r:18, spd:0.9,  aggro:90,  eye:'#ff5a3a', mimic:true},
   octopus: {n:'Taklitçi ahtapot',  hp:4, dmg:0.12, bounty:10, r:22, spd:0.6,  aggro:130, eye:'#ffcf3a', mimic:true},
   // Engelleyici unsurlar (kıpırdamaz). Kestane ve mayın vurulabilir, kat listesine sayılır; baca kırılmaz, sayılmaz.
@@ -123,7 +123,7 @@ const WEAPONS = [
   {id:'aps',     n:'Sualtı tüfeği',          unlock:4, dmg:0.55,cd:0.11, kind:'dart',   speed:1150, range:600, spread:0.08, d:'Su altında ateş eden seri tüfek. Sürülere birebir.'},
   {id:'sonic',   n:'Sonik top',              unlock:5, dmg:1.6, cd:2.4,  kind:'cone',   range:290, angle:0.65, stun:2, d:'Koni şeklinde ses dalgası: iter, sersemletir.'},
   {id:'torpedo', n:'Mini torpido',           unlock:7, dmg:11,  cd:2.2,  kind:'homing', speed:520,  range:900, blast:130, d:'Hedefi takip eder, patlayınca çevreye hasar verir.'},
-  {id:'trident', n:'Poseidon\'un üç dişlisi',unlock:9, dmg:7,   cd:0,    kind:'beam',   range:460, d:'Basılı tuttukça yakan bir ışın. Atlantis\'in silahı (saniyede hasar).'},
+  {id:'trident', n:'Poseidon\'un üç dişlisi',unlock:9, dmg:7,   cd:0,    kind:'beam',   range:460, d:'Basılı tuttukça yakan bir ışın. Ocean Secret\'in silahı (saniyede hasar).'},
 ];
 
 // Yetenekler: bekleme süreli. Seviye 0..2, bekleme x[1, 0.8, 0.6]. dash her zaman takılı.

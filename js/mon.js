@@ -1417,7 +1417,7 @@ function drawOrbs(ctx, m, P, cam){
   ctx.fillStyle = '#e8ffff';
   for (const o of m.orbs) { ctx.beginPath(); ctx.arc(o.x - cam.x, o.y - cam.y, 4, 0, TAU); ctx.fill(); }
 }
-// Atlantis bekçisi: orikalkum kenarlı taş plakalardan bir nöbetçi; tek göz, yan bantta runeler.
+// Ocean Secret bekçisi: orikalkum kenarlı taş plakalardan bir nöbetçi; tek göz, yan bantta runeler.
 function drawGuardian(ctx, m, P){
   const t = m.ph, rn = m.rune, fl = Math.sin(t*3)*2, hot = clamp(rn - 0.9, 0, 1);
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
